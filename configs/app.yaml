@@ -1,0 +1,7 @@
+# Application configuration shared by the FastAPI service and Streamlit dashboard.
+# Deployment-specific secrets and hosts belong in environment variables.
+
+api_title: MachLeData Object Detection API
+model_artifact_path: ${MODEL_ARTIFACT_PATH}
+confidence_threshold: 0.25
+

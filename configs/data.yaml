@@ -1,0 +1,8 @@
+# Data configuration for local scripts and Airflow-triggered runs.
+# Keep credentials in .env or the cloud environment, not in this file.
+
+source: bigquery
+project_id: ${GOOGLE_CLOUD_PROJECT}
+dataset: ${BIGQUERY_DATASET}
+samples_dir: data/samples
+
