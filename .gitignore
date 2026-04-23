@@ -193,6 +193,7 @@ cython_debug/
 
 # Local ML artifacts
 artifacts/
+.airflow/
 
 # PyPI configuration file
 .pypirc
