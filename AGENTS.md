@@ -28,6 +28,8 @@ Use the Python project metadata in `pyproject.toml`:
 - `python scripts/train.py` smoke-tests the training entry point
 - `python scripts/predict.py` smoke-tests the prediction CLI
 - `python scripts/evaluate.py` smoke-tests the evaluation CLI
+- `docker compose -f docker/docker-compose.yml up airflow-init` initializes the local Airflow metadata database
+- `docker compose -f docker/docker-compose.yml up airflow-webserver airflow-scheduler airflow-triggerer` runs the Airflow stack locally
 - `python -m uvicorn apps.api:app --reload` runs the API locally
 - `streamlit run apps/dashboard.py` runs the dashboard locally
 
@@ -38,6 +40,8 @@ Update this section if a `Makefile` or another task runner becomes the canonical
 Write Python using PEP 8 with 4-space indentation, `snake_case` for functions and variables, `PascalCase` for classes, and lowercase module names. Keep modules focused and name scripts descriptively, for example `train.py` or `predict.py`.
 
 Prefer type hints and concise docstrings. Skeleton files should include short module docstrings explaining their role in the pipeline, especially when the concrete implementation is still a stub.
+
+For Airflow work, keep DAG code thin and push logic into `src/machledata/` or `scripts/` so local CLI runs and orchestrated runs stay aligned.
 
 ## Testing Guidelines
 
