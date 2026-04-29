@@ -1,13 +1,15 @@
-import streamlit as st
-import requests
+import base64
+import io
+
 import cv2
 import numpy as np
-from PIL import Image
 import pandas as pd
 import plotly.express as px
-import time
+import requests
+import streamlit as st
+from PIL import Image
 
-API_URL = "http://localhost:8000/detect"
+API_URL = "http://localhost:8000/predict"
 
 st.set_page_config(page_title="YOLO Detection Dashboard", layout="wide")
 st.title("📸 YOLO Object Detection – Live Monitoring")
@@ -55,7 +57,6 @@ if uploaded_file is not None:
         
         # Show annotated image if requested
         if return_annotated and data.get("annotated_image_base64"):
-            import base64
             img_bytes = base64.b64decode(data["annotated_image_base64"])
             annotated_img = Image.open(io.BytesIO(img_bytes))
             st.image(annotated_img, caption="Annotated Result", use_column_width=True)
