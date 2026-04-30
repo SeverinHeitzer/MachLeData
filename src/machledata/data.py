@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from google.cloud import bigquery
+
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 
@@ -99,8 +101,6 @@ def load_bigquery_object_detection_rows(
     client: Any | None = None,
 ) -> list[dict[str, Any]]:
     """Load normalized image and bounding-box rows from BigQuery."""
-    from google.cloud import bigquery
-
     active_client = client or bigquery.Client(project=config.project_id)
     query_parameters = [
         bigquery.ScalarQueryParameter("split", "STRING", config.split),
