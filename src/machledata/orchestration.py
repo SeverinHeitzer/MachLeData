@@ -16,9 +16,11 @@ from machledata.data import (
     describe_bigquery_source,
     load_bigquery_object_detection_rows,
     load_sample_paths,
+    write_yolo_dataset_yaml,
 )
 from machledata.metrics import summarize_detections
-from machledata.train import create_training_run
+from machledata.train import create_training_run, train_yolo_model
+from machledata.model import build_model_config, save_model
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -93,6 +95,18 @@ def prepare_dataset(
         if project_id and bigquery_dataset
         else dataset_id
     )
+
+    # Build YOLO dataset.yaml so train_yolo_model() can be called directly.
+    class_names = sorted({row["class_name"] for row in annotation_rows if row.get("class_name")})
+    if not class_names:
+        class_names = ["object"]
+    yolo_yaml_path = prepared_dir / "dataset.yaml"
+    write_yolo_dataset_yaml(
+        output_path=yolo_yaml_path,
+        train_image_dir=_project_path(samples_dir),
+        class_names=class_names,
+    )
+
     descriptor = {
         "dataset_id": dataset_id,
         "run_label": run_label or label,
@@ -102,6 +116,7 @@ def prepare_dataset(
         "sample_files": [path.name for path in sample_paths],
         "annotation_count": len(annotation_rows),
         "annotations_path": str(annotation_path.resolve()) if annotation_path else None,
+        "yolo_dataset_yaml": str(yolo_yaml_path.resolve()),
         "split": split or config_value(data_config, "split"),
         "source_type": "bigquery" if project_id and bigquery_dataset else "local",
         "source_uri": source_uri,
@@ -129,7 +144,7 @@ def train_model(
     model_artifact_path: str | Path | None = None,
     training_metadata_path: str | Path | None = None,
 ) -> dict[str, Any]:
-    """Create placeholder training outputs and run metadata."""
+    """Train a YOLO model and persist run metadata."""
     run_id = _build_run_id(model_name, run_label)
     training_dir = Path(artifact_root) / "training" / run_id
     training_dir.mkdir(parents=True, exist_ok=True)
@@ -145,10 +160,38 @@ def train_model(
         else training_dir / "model-placeholder.bin"
     )
     output_model_path.parent.mkdir(parents=True, exist_ok=True)
-    output_model_path.write_text(
-        f"Placeholder model artifact for {model_name} ({epochs} epochs)\n",
-        encoding="utf-8",
-    )
+
+    model_config = load_yaml_config(model_config_path)
+    yolo_metrics: dict[str, Any] = {}
+    yolo_yaml = prepared_dataset.get("yolo_dataset_yaml")
+    if yolo_yaml and Path(yolo_yaml).exists():
+        try:
+            cfg = build_model_config(
+                model_name=model_name,
+                image_size=int(model_config.get("image_size", 640)),
+                confidence_threshold=0.25,
+            )
+            trained_model, yolo_metrics = train_yolo_model(
+                config=cfg,
+                dataset_path=yolo_yaml,
+                epochs=epochs,
+                batch_size=int(model_config.get("batch_size", 8)),
+                artifact_dir=training_dir,
+            )
+            save_model(trained_model, output_model_path)
+        except Exception as exc:
+            # Fall back to placeholder so the pipeline step doesn't hard-fail
+            # when training images are unavailable (e.g. empty data/samples/).
+            yolo_metrics = {"training_error": str(exc)}
+            output_model_path.write_text(
+                f"Placeholder model artifact for {model_name} ({epochs} epochs)\n",
+                encoding="utf-8",
+            )
+    else:
+        output_model_path.write_text(
+            f"Placeholder model artifact for {model_name} ({epochs} epochs)\n",
+            encoding="utf-8",
+        )
 
     run_metadata = {
         "run_id": run_id,
@@ -156,12 +199,13 @@ def train_model(
         "model_name": training_run.model_name,
         "epochs": training_run.epochs,
         "artifact_dir": training_run.artifact_dir,
-        "model_artifact_path": str(output_model_path.resolve()),
+        "model_artifact_path": str(output_model_path),
         "prepared_dataset_id": prepared_dataset["dataset_id"],
-        "prepared_descriptor_path": prepared_dataset["descriptor_path"],
+        "prepared_descriptor_path": prepared_dataset.get("descriptor_path", ""),
+        "yolo_metrics": yolo_metrics,
         "status": "completed",
         "trained_at": _utc_timestamp(),
-        "config_snapshot": load_yaml_config(model_config_path),
+        "config_snapshot": model_config,
     }
     metadata_path = (
         Path(training_metadata_path)

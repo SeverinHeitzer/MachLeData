@@ -31,6 +31,7 @@ def main() -> None:
     parser.add_argument("--artifact-root", default=None)
     parser.add_argument("--run-label", default="manual")
     parser.add_argument("--min-detections-per-image", type=float, default=0.1)
+    parser.add_argument("--use-gpu", action="store_true", default=False)
     args = parser.parse_args()
 
     config = load_yaml_config(PIPELINE_CONFIG)
@@ -77,6 +78,7 @@ def main() -> None:
             "artifact_root": artifact_root,
             "run_label": args.run_label,
             "min_detections_per_image": args.min_detections_per_image,
+            "use_gpu": args.use_gpu,
         },
     )
     job.submit(service_account=service_account or None)

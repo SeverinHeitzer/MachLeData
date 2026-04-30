@@ -5,6 +5,12 @@ from kfp import dsl
 
 PIPELINE_IMAGE = os.getenv("MACHLEDATA_PIPELINE_IMAGE", "machledata:local")
 PIPELINE_NAME = "machledata-ml-pipeline"
+TASK_SEQUENCE = (
+    "prepare-data",
+    "train-model",
+    "evaluate-model",
+    "publish-artifact-metadata",
+)
 
 @dsl.container_component
 def prepare_data_component(
@@ -125,11 +131,9 @@ def machledata_pipeline(
     artifact_root: str = "/tmp/machledata-artifacts",
     run_label: str = "manual",
     min_detections_per_image: float = 0.1,
+    use_gpu: bool = False,
 ) -> None:
     """Orchestrates the full ML workflow DAG."""
-    
-    # Bug Diagnostics fix: explicitly silence static type checkers on component calls 
-    # since KFP injects the dsl.Output arguments under the hood.
     prep_task = prepare_data_component(
         dataset_id=dataset_id,
         samples_dir=samples_dir,
@@ -140,7 +144,7 @@ def machledata_pipeline(
         split=split,
         max_rows=max_rows,
         artifact_root=artifact_root,
-        run_label=run_label
+        run_label=run_label,
     )  # type: ignore
 
     train_task = train_model_component(
@@ -148,14 +152,16 @@ def machledata_pipeline(
         model_name=model_name,
         epochs=epochs,
         artifact_root=artifact_root,
-        run_label=run_label
+        run_label=run_label,
     )  # type: ignore
+    if use_gpu:
+        train_task = train_task.set_accelerator_type("NVIDIA_TESLA_T4").set_accelerator_limit("1")
 
     eval_task = evaluate_model_component(
         prepared_dataset=prep_task.outputs["prepared_dataset"],
         model_artifact=train_task.outputs["model_artifact"],
         training_run=train_task.outputs["training_metadata"],
-        min_detections_per_image=min_detections_per_image
+        min_detections_per_image=min_detections_per_image,
     )  # type: ignore
 
     publish_artifact_metadata_component(
@@ -164,5 +170,5 @@ def machledata_pipeline(
         training_run=train_task.outputs["training_metadata"],
         evaluation_summary=eval_task.outputs["evaluation_summary"],
         evaluation_metrics=eval_task.outputs["evaluation_metrics"],
-        artifact_root=artifact_root
+        artifact_root=artifact_root,
     )  # type: ignore
