@@ -204,5 +204,6 @@ Required GitHub secrets:
 
 - `docs/architecture.md` — pipeline structure and Vertex AI handoff
 - `docs/data.md` — BigQuery schema and local fixture conventions
+- `docs/gcp_setup.md` — one-time GCP setup: APIs, IAM, Artifact Registry, BigQuery tables, Workload Identity
 - `data/README.md` — data directory layout
 - `data/samples/README.md` — fixture files

@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import yaml
 from google.cloud import bigquery
 
 
@@ -134,6 +135,36 @@ def _row_to_detection_record(row: Any) -> dict[str, Any]:
         "class_name": payload.get("class_name"),
         "bbox": bbox,
     }
+
+
+def write_yolo_dataset_yaml(
+    output_path: Path,
+    train_image_dir: Path,
+    class_names: list[str],
+    val_image_dir: Path | None = None,
+) -> Path:
+    """Write a YOLO-compatible dataset.yaml for ultralytics.YOLO.train(data=...).
+
+    Args:
+        output_path: Where to write the YAML file.
+        train_image_dir: Directory containing training images.
+        class_names: Ordered list of class label strings.
+        val_image_dir: Validation image directory; defaults to train_image_dir.
+
+    Returns:
+        Path to the written YAML file.
+    """
+    val_dir = val_image_dir or train_image_dir
+    content = {
+        "path": str(train_image_dir.resolve()),
+        "train": ".",
+        "val": str(val_dir.resolve()) if val_image_dir else ".",
+        "nc": len(class_names),
+        "names": {i: name for i, name in enumerate(class_names)},
+    }
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(yaml.dump(content, sort_keys=False), encoding="utf-8")
+    return output_path
 
 
 def _table_ref(project_id: str, dataset: str, table: str) -> str:
