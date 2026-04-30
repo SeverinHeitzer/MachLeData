@@ -25,6 +25,10 @@ dependencies = [
     "plotly",
     "requests",
     "python-dotenv",
+    "transformers>=4.30.0",
+    "torch",
+    "torchvision",
+    "ultralytics>=8.0.0",
 ]
 
 [project.optional-dependencies]

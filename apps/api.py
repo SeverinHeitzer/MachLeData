@@ -6,10 +6,15 @@ import tempfile
 from pathlib import Path
 
 from fastapi import FastAPI, File, UploadFile
+from PIL import Image
 
 from machledata.infer import PredictionResponse, predict_image
+from machledata.model import build_model_config
 
 app = FastAPI(title="MachLeData Object Detection API")
+
+# Default model configuration
+_default_config = build_model_config()
 
 
 @app.get("/health")
@@ -18,20 +23,58 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/model/config")
+def get_model_config() -> dict:
+    """Return current model configuration."""
+    return {
+        "model_name": _default_config.model_name,
+        "image_size": _default_config.image_size,
+        "confidence_threshold": _default_config.confidence_threshold,
+    }
+
+
 @app.post("/predict", response_model=PredictionResponse)
 async def predict(
     file: UploadFile | None = File(default=None),
     return_annotated: bool = False,
     confidence_threshold: float = 0.25,
 ) -> PredictionResponse:
-    """Return object detections for an uploaded image once inference is wired in."""
-    _ = return_annotated, confidence_threshold
+    """Return object detections for an uploaded image.
+    
+    Args:
+        file: Image file to process.
+        return_annotated: Whether to return base64-encoded annotated image.
+        confidence_threshold: Detection confidence threshold.
+    
+    Returns:
+        PredictionResponse with detections.
+    """
     if file is None:
         return PredictionResponse(detections=[])
 
-    suffix = Path(file.filename or "upload").suffix
-    with tempfile.NamedTemporaryFile(suffix=suffix, delete=True) as tmp:
-        tmp.write(await file.read())
-        tmp.flush()
-        detections = predict_image(tmp.name)
-    return PredictionResponse(detections=detections)
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmppath = Path(tmpdir) / (file.filename or "image.jpg")
+            contents = await file.read()
+            tmppath.write_bytes(contents)
+
+            # Validate image
+            try:
+                Image.open(tmppath)
+            except Exception:
+                return PredictionResponse(detections=[])
+
+            # Run inference with custom threshold if provided
+            config = _default_config
+            if confidence_threshold != _default_config.confidence_threshold:
+                config = build_model_config(
+                    model_name=_default_config.model_name,
+                    image_size=_default_config.image_size,
+                    confidence_threshold=confidence_threshold,
+                )
+
+            detections = predict_image(tmppath, config=config)
+            return PredictionResponse(detections=detections)
+
+    except Exception:
+        return PredictionResponse(detections=[])
