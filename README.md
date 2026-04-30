@@ -16,7 +16,12 @@ The project is a working MLOps scaffold. These pieces are in place:
 - Pytest coverage for data helpers, inference, API behavior, orchestration contracts, Kubeflow compilation, and Vertex submit wiring
 - GitHub Actions CI/CD for tests, pipeline compilation, image build, and deployment automation
 
-The real YOLO training, BigQuery/image dataset integration, and production inference logic are still placeholders. After this scaffold, the main remaining work is to wire the chosen model and dataset into the existing seams.
+The real YOLO training, BigQuery/image dataset integration, and production inference logic are still placeholders. After this scaffold, the main remaining work is to wire the chosen model and dataset into the existing seams:
+
+- `machledata.data.load_sample_paths` and future BigQuery helpers for dataset access
+- `machledata.train.create_training_run` / `machledata.orchestration.train_model` for model training
+- `machledata.infer.predict_image` for production prediction
+- `machledata.metrics` and `machledata.orchestration.evaluate_model` for real evaluation metrics
 
 ## Repository Layout
 
@@ -57,6 +62,13 @@ Run the test suite:
 python -m pytest
 ```
 
+Run the same validation shape used for pipeline work:
+
+```bash
+python -m pytest
+python scripts/compile_pipeline.py --image-uri machledata:local --package-path /tmp/machledata_pipeline.yaml
+```
+
 ## Common Commands
 
 Run the FastAPI app locally:
@@ -83,6 +95,13 @@ Compile the Kubeflow pipeline package:
 
 ```bash
 python scripts/compile_pipeline.py --image-uri machledata:local
+```
+
+For Vertex AI, use an image URI that Vertex can pull, for example an Artifact Registry image:
+
+```bash
+python scripts/compile_pipeline.py \
+  --image-uri "$VERTEX_REGION-docker.pkg.dev/$GOOGLE_CLOUD_PROJECT/machledata/machledata:latest"
 ```
 
 Submit the compiled pipeline to Vertex AI:
@@ -118,6 +137,8 @@ Each component runs the shared project image and calls `python -m machledata.pip
 - `artifact_manifest.json`
 
 `scripts/compile_pipeline.py` compiles the pipeline to `artifacts/pipelines/machledata_pipeline.yaml`. `scripts/submit_vertex_pipeline.py` submits that package to Vertex AI Pipelines with explicit GCP settings. Nothing is submitted to GCP automatically during tests.
+
+The compile step is local and does not require GCP credentials. The submit step requires Google Cloud authentication and a `gs://` pipeline root that the Vertex AI pipeline service account can write to.
 
 ## API and Dashboard Contract
 
@@ -162,9 +183,13 @@ Relevant environment variables:
 - `VERTEX_PIPELINE_ROOT`
 - `VERTEX_SERVICE_ACCOUNT`
 
+`MACHLEDATA_PIPELINE_IMAGE` is used by config defaults, but the recommended release workflow is to pass `--image-uri` explicitly when compiling the pipeline so the YAML contains the exact image tag intended for Vertex.
+
 ## CI/CD and Deployment
 
 The GitHub Actions workflow runs tests, compiles the Kubeflow pipeline, builds the Docker image, pushes it to Docker Hub, and deploys the API stack to a remote VPS on pushes to `main`.
+
+CI compiles the pipeline with a neutral `machledata:ci` image to validate syntax and task wiring. Production Vertex runs should be compiled with a concrete registry image that exists and is accessible from GCP.
 
 The deployment workflow expects these repository secrets:
 
@@ -180,6 +205,7 @@ The deployment workflow expects these repository secrets:
 - Target Python 3.10 or newer
 - Keep package logic in `src/machledata/`; leave apps, scripts, and workflows thin
 - Use `machledata.pipeline_steps` as the container boundary for Kubeflow steps
+- Keep component inputs and outputs file-based JSON unless a later model integration requires a typed KFP artifact
 - Avoid committing generated artifacts, large datasets, caches, virtual environments, or trained model weights
 - Prefer adding tests alongside new behavior, especially for inference, metrics, API routes, data helpers, and pipeline contracts
 

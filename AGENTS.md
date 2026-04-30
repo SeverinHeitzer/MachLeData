@@ -22,7 +22,7 @@ Use the Python project metadata in `pyproject.toml`:
 
 - `python -m venv .venv` creates a local virtual environment
 - `source .venv/bin/activate` activates it on Linux or macOS shells
-- `python -m pip install -e ".[dev]"` installs the package and test dependencies
+- `python -m pip install -e ".[dev,kubeflow,vertex]"` installs the package, tests, Kubeflow compiler, and Vertex submit dependencies
 - `python -m machledata` smoke-tests package importability
 - `python -m pytest` runs the test suite
 - `python scripts/train.py` smoke-tests the training entry point
