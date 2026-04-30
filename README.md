@@ -108,20 +108,27 @@ The orchestration entry point is `workflows/kubeflow_pipeline.py`. It defines a 
 
 Each stage runs the shared Docker image and calls `python -m machledata.pipeline_steps <command>`. Artifacts are exchanged as KFP v2 typed paths with JSON payloads inside, keeping local smoke tests, Kubeflow, and Vertex AI aligned.
 
+The `train-model` step currently writes a placeholder model artifact. Real training is implemented in `machledata.train.train_yolo_model` and requires a YOLO-format `dataset.yaml` to be generated during `prepare-data`. That wiring is pending.
+
 `scripts/compile_pipeline.py` compiles the pipeline to `artifacts/pipelines/machledata_pipeline.yaml`. Compilation is local and requires no GCP credentials. Submission requires Google Cloud authentication and a `gs://` pipeline root the Vertex AI service account can write to.
 
 Vertex submission parameters:
 
 | Parameter | Default | Description |
 |---|---|---|
+| `dataset_id` | `local-demo` | Logical name for the prepared dataset |
+| `samples_dir` | `data/samples` | Local image directory for offline smoke checks |
 | `project_id` | `GOOGLE_CLOUD_PROJECT` | GCP project |
 | `bigquery_dataset` | `BIGQUERY_DATASET` | BigQuery dataset name |
 | `images_table` | `images` | Image metadata table |
 | `labels_table` | `labels` | Bounding-box annotation table |
 | `split` | `train` | Dataset split filter |
 | `max_rows` | `0` (no limit) | Row cap for smoke runs |
-| `model_name` | `yolov8n` | YOLO variant |
+| `model_name` | `yolov8n` | YOLO variant (`yolov8n`, `yolov8s`, …) |
 | `epochs` | `10` | Training epochs |
+| `artifact_root` | `VERTEX_ARTIFACT_ROOT` | Base path for run artifacts (`gs://…` on Vertex) |
+| `run_label` | `manual` | Human-readable tag for the run |
+| `min_detections_per_image` | `0.1` | Evaluation pass threshold |
 
 ## API Contract
 
@@ -166,9 +173,10 @@ Keep secrets and credentials out of Git. Use `.env` or deployment configuration 
 | `BIGQUERY_DATASET` | Data preparation step |
 | `MODEL_ARTIFACT_PATH` | Inference service |
 | `MACHLEDATA_PIPELINE_IMAGE` | Pipeline config default |
-| `VERTEX_REGION` | Vertex AI submission |
+| `VERTEX_REGION` | Vertex AI submission and Artifact Registry |
 | `VERTEX_PIPELINE_ROOT` | Vertex AI pipeline root (`gs://...`) |
 | `VERTEX_SERVICE_ACCOUNT` | Vertex AI service account email |
+| `VERTEX_ARTIFACT_ROOT` | GCS path for run artifacts (`gs://bucket/machledata-artifacts`) |
 
 Passing `--image-uri` explicitly when compiling is preferred over relying on the environment variable so the compiled YAML contains a pinned image reference.
 

@@ -57,13 +57,12 @@ python scripts/submit_vertex_pipeline.py \
   --split train
 ```
 
-Future GCP integration points:
+Remaining GCP integration steps:
 
-- real BigQuery credentials, dataset, and image references in the data preparation step
-- trained model artifacts stored in GCS or registered in Vertex Model Registry
-- FastAPI inference service reading artifacts from GCS
-- Streamlit dashboard surfacing metrics and class distributions
-- optional deployment orchestration through Vertex AI, Cloud Run, or CI/CD
+- BigQuery dataset populated with real image metadata and bounding-box annotations; image URIs pointing to accessible GCS paths
+- YOLO `dataset.yaml` generated during `prepare-data` so `machledata.train.train_yolo_model` can be called from the `train-model` step (currently writes a placeholder artifact)
+- Trained model artifacts stored in GCS or registered in Vertex Model Registry
+- FastAPI inference service reading the published model artifact from GCS
 
 ## Prediction Contract
 

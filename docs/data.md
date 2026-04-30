@@ -55,9 +55,17 @@ Use `data/samples/` only for tiny, non-sensitive image files that make tests or
 demo smoke checks reproducible without cloud access. Do not store raw exports,
 large datasets, trained weights, or generated artifacts in Git.
 
-## Model Integration Boundary
+## Model Integration
 
-When the real model is added, data loading should be implemented behind
-`machledata.data` and consumed through `machledata.orchestration.prepare_dataset`.
-Kubeflow and Vertex pipeline definitions should continue to call the same
-package-level contract instead of embedding dataset logic in pipeline code.
+The YOLOv8 model is integrated via `machledata.train.train_yolo_model`. It expects a
+`dataset.yaml` in the Ultralytics format pointing at an image directory and class list.
+
+`machledata.orchestration.prepare_dataset` produces the dataset descriptor from which
+the training step derives its inputs. Real end-to-end training requires:
+
+1. Images accessible at the paths recorded in BigQuery (`image_uri` column, typically `gs://…`).
+2. A YOLO-format `dataset.yaml` generated during data preparation and passed to `train_yolo_model(dataset_path=…)`.
+
+Local smoke checks use `data/samples/` fixtures. Any additional image downloading or
+GCS-to-local staging belongs behind `machledata.data` so the pipeline steps and CLI
+scripts stay aligned.
