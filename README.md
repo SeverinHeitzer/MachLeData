@@ -1,20 +1,22 @@
 # MachLeData
 
-MachLeData is a course project skeleton for a YOLO-style object detection pipeline with a small MLOps-oriented layout. The repository now includes reusable package modules, CLI entry points, a FastAPI app, a Streamlit dashboard, config files, tests, and a Docker-based Airflow pipeline that prepares data, trains, evaluates, and publishes deployment-facing metadata.
+MachLeData is a course project for a YOLO-style object detection pipeline with an MLOps-oriented layout. The repository includes reusable package modules, CLI entry points, a FastAPI app, a Streamlit dashboard, configuration files, tests, a Docker-based Airflow pipeline, and a GitHub Actions workflow for test, image build, and deployment automation.
 
 ## Current Status
 
-The project is intentionally lightweight today. The scaffolding that already works includes:
+The project is intentionally lightweight, but the main MLOps seams are in place. The pieces that already work include:
 
 - Python package entry point in `src/machledata/`
 - FastAPI health and placeholder prediction endpoints in `apps/api.py`
-- Streamlit dashboard starter in `apps/dashboard.py`
+- Streamlit dashboard for image upload, API-backed prediction display, detection metrics, and optional annotated images in `apps/dashboard.py`
 - Local CLI scripts for training, prediction, and evaluation in `scripts/`
 - Config files in `configs/`
-- Smoke tests for data helpers, inference, and API behavior in `tests/`
+- Pytest coverage for data helpers, inference, orchestration, Airflow DAG structure, and API behavior in `tests/`
 - A manual, backfill-ready Airflow DAG in `workflows/airflow_dag.py`
+- Docker Compose services for Airflow, Postgres, and the API in `docker/docker-compose.yml`
+- GitHub Actions CI/CD in `.github/workflows/deploy.yaml`
 
-The model training, dataset integration, and real inference logic are still stubs, which makes this a good foundation for iterative implementation.
+The real YOLO training, dataset integration, and production inference logic are still placeholders. The current implementation is best understood as a working MLOps scaffold that can be extended with a concrete model and dataset.
 
 ## Repository Layout
 
@@ -25,7 +27,8 @@ The model training, dataset integration, and real inference logic are still stub
 - `tests/`: pytest coverage for package and app smoke tests
 - `workflows/`: orchestration entry points such as the Airflow DAG
 - `docs/`: architecture and data notes
-- `docker/`: Dockerfile and Compose scaffolding
+- `docker/`: Dockerfiles and Compose configuration for local services
+- `.github/workflows/`: CI/CD workflow definitions
 - `data/samples/`: tiny tracked fixtures only
 
 ## Quick Start
@@ -57,6 +60,12 @@ Run the test suite:
 python -m pytest
 ```
 
+Run the same style of coverage command used in CI:
+
+```bash
+python -m pytest -v --cov=src --cov-report=term
+```
+
 Run the FastAPI app locally:
 
 ```bash
@@ -82,6 +91,12 @@ Run the local Airflow stack:
 ```bash
 docker compose -f docker/docker-compose.yml up airflow-init
 docker compose -f docker/docker-compose.yml up airflow-webserver airflow-scheduler airflow-triggerer
+```
+
+Run the API service through Docker Compose:
+
+```bash
+docker compose -f docker/docker-compose.yml up api
 ```
 
 ## Package Overview
@@ -143,9 +158,30 @@ The FastAPI app currently exposes:
 - `GET /health`: returns `{"status": "ok"}`
 - `POST /predict`: returns an empty detection list until inference is implemented
 
-The Streamlit dashboard is a starter page for demos, prediction inspection, and model metrics.
+The Streamlit dashboard provides a local monitoring and demo surface. It accepts image uploads, sends them to the API, displays detection counts, renders a confidence chart and detection table when detections are present, and can show an annotated image when the API returns one.
+
+Because the API prediction endpoint is still a placeholder, the dashboard currently represents the intended end-to-end user flow rather than real model inference. Before using it as a live demo, align the API response contract with the dashboard fields: `detections`, `class_name`, `confidence`, `bbox`, and optional `annotated_image_base64`.
 
 The Airflow pipeline is the orchestration path for preparing data, training a model, evaluating outputs, and publishing deployment-facing metadata. It stops at artifact and manifest creation so the API or dashboard can consume validated outputs later.
+
+## CI/CD and Deployment
+
+The GitHub Actions workflow in `.github/workflows/deploy.yaml` runs on pushes and pull requests targeting `main` or `develop`, and on version tags matching `v*`.
+
+The workflow has three stages:
+
+1. `test`: installs the package with development dependencies, runs pytest with coverage, and uploads coverage output to Codecov.
+2. `build`: builds `docker/Dockerfile` with Docker Buildx and pushes the image to Docker Hub on push events.
+3. `deploy`: on pushes to `main`, connects to a remote VPS over SSH, pulls the latest image, and restarts the Docker Compose stack.
+
+The deployment workflow expects these repository secrets:
+
+- `DOCKER_USERNAME`
+- `DOCKER_PASSWORD`
+- `REMOTE_HOST`
+- `REMOTE_USER`
+- `SSH_PRIVATE_KEY`
+- `REMOTE_APP_DIR`
 
 ## Configuration
 
@@ -163,6 +199,8 @@ For the Airflow pipeline, the most relevant variables are:
 - `BIGQUERY_DATASET`
 - `MODEL_ARTIFACT_PATH`
 - `AIRFLOW_UID` for local Docker file ownership if needed
+
+For CI/CD, configure Docker Hub and remote server credentials as GitHub Actions secrets rather than local environment variables.
 
 ## Development Notes
 
