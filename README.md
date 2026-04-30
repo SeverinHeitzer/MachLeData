@@ -1,34 +1,33 @@
 # MachLeData
 
-MachLeData is a course project for a YOLO-style object detection pipeline with an MLOps-oriented layout. The repository includes reusable package modules, CLI entry points, a FastAPI app, a Streamlit dashboard, configuration files, tests, a Docker-based Airflow pipeline, and a GitHub Actions workflow for test, image build, and deployment automation.
+MachLeData is a course project for a YOLO-style object detection pipeline with an MLOps-oriented layout. The repository now targets Kubeflow Pipelines v2 and Vertex AI Pipelines for orchestration, while keeping the model implementation as a clear future integration point.
 
 ## Current Status
 
-The project is intentionally lightweight, but the main MLOps seams are in place. The pieces that already work include:
+The project is a working MLOps scaffold. These pieces are in place:
 
 - Python package entry point in `src/machledata/`
 - FastAPI health and placeholder prediction endpoints in `apps/api.py`
-- Streamlit dashboard for image upload, API-backed prediction display, detection metrics, and optional annotated images in `apps/dashboard.py`
-- Local CLI scripts for training, prediction, and evaluation in `scripts/`
-- Config files in `configs/`
-- Pytest coverage for data helpers, inference, orchestration, Airflow DAG structure, and API behavior in `tests/`
-- A manual, backfill-ready Airflow DAG in `workflows/airflow_dag.py`
-- Docker Compose services for Airflow, Postgres, and the API in `docker/docker-compose.yml`
-- GitHub Actions CI/CD in `.github/workflows/deploy.yaml`
+- Streamlit dashboard that consumes the API prediction contract
+- Local CLI scripts for training, prediction, evaluation, pipeline compilation, and Vertex submission
+- Serializable prepare, train, evaluate, and publish helpers in `machledata.orchestration`
+- Container-based Kubeflow Pipelines v2 definition in `workflows/kubeflow_pipeline.py`
+- Docker image for API and pipeline step runtime
+- Pytest coverage for data helpers, inference, API behavior, orchestration contracts, Kubeflow compilation, and Vertex submit wiring
+- GitHub Actions CI/CD for tests, pipeline compilation, image build, and deployment automation
 
-The real YOLO training, dataset integration, and production inference logic are still placeholders. The current implementation is best understood as a working MLOps scaffold that can be extended with a concrete model and dataset.
+The real YOLO training, BigQuery/image dataset integration, and production inference logic are still placeholders. After this scaffold, the main remaining work is to wire the chosen model and dataset into the existing seams.
 
 ## Repository Layout
 
-- `src/machledata/`: package code for data access, model config, training, metrics, and inference
+- `src/machledata/`: reusable package code for data access, training, inference, metrics, orchestration, and pipeline step adapters
 - `apps/`: FastAPI and Streamlit entry points
-- `scripts/`: local command-line helpers for train, predict, and evaluate flows
+- `scripts/`: local command-line helpers, including Kubeflow compile and Vertex submit scripts
 - `configs/`: committed YAML configuration files
-- `tests/`: pytest coverage for package and app smoke tests
-- `workflows/`: orchestration entry points such as the Airflow DAG
+- `tests/`: pytest coverage for package, API, and pipeline behavior
+- `workflows/`: Kubeflow pipeline definitions
 - `docs/`: architecture and data notes
-- `docker/`: Dockerfiles and Compose configuration for local services
-- `.github/workflows/`: CI/CD workflow definitions
+- `docker/`: Dockerfile and Compose configuration for local services
 - `data/samples/`: tiny tracked fixtures only
 
 ## Quick Start
@@ -40,10 +39,10 @@ python -m venv .venv
 source .venv/bin/activate
 ```
 
-Install the project with development dependencies:
+Install development and pipeline dependencies:
 
 ```bash
-python -m pip install -e ".[dev]"
+python -m pip install -e ".[dev,kubeflow,vertex]"
 ```
 
 Run the package smoke test:
@@ -52,19 +51,13 @@ Run the package smoke test:
 python -m machledata
 ```
 
-## Common Commands
-
 Run the test suite:
 
 ```bash
 python -m pytest
 ```
 
-Run the same style of coverage command used in CI:
-
-```bash
-python -m pytest -v --cov=src --cov-report=term
-```
+## Common Commands
 
 Run the FastAPI app locally:
 
@@ -86,11 +79,20 @@ python scripts/predict.py
 python scripts/evaluate.py
 ```
 
-Run the local Airflow stack:
+Compile the Kubeflow pipeline package:
 
 ```bash
-docker compose -f docker/docker-compose.yml up airflow-init
-docker compose -f docker/docker-compose.yml up airflow-webserver airflow-scheduler airflow-triggerer
+python scripts/compile_pipeline.py --image-uri machledata:local
+```
+
+Submit the compiled pipeline to Vertex AI:
+
+```bash
+python scripts/submit_vertex_pipeline.py \
+  --project-id "$GOOGLE_CLOUD_PROJECT" \
+  --region "$VERTEX_REGION" \
+  --pipeline-root "$VERTEX_PIPELINE_ROOT" \
+  --template-path artifacts/pipelines/machledata_pipeline.yaml
 ```
 
 Run the API service through Docker Compose:
@@ -99,80 +101,70 @@ Run the API service through Docker Compose:
 docker compose -f docker/docker-compose.yml up api
 ```
 
-## Package Overview
+## Kubeflow and Vertex Pipeline
 
-The core package is designed to keep application and orchestration code thin:
+The orchestration entry point is `workflows/kubeflow_pipeline.py`. It defines one container-based Kubeflow Pipelines v2 workflow:
 
-- `machledata.data`: sample-file discovery and BigQuery source description helpers
-- `machledata.model`: typed model configuration for future YOLO integration
-- `machledata.train`: training run metadata creation
-- `machledata.infer`: shared detection schema and prediction interface
-- `machledata.metrics`: simple summary metrics for demos and smoke tests
-- `machledata.orchestration`: serializable prepare, train, evaluate, and publish contracts for Airflow and CLIs
+1. `prepare-data`
+2. `train-model`
+3. `evaluate-model`
+4. `publish-artifact-metadata`
 
-## Airflow Pipeline
+Each component runs the shared project image and calls `python -m machledata.pipeline_steps ...`. Pipeline stages exchange JSON files so the real model can be introduced without changing the orchestration shape:
 
-The orchestration entry point is `workflows/airflow_dag.py`. It defines one manual DAG with four linear stages:
+- `prepared_dataset.json`
+- `training_run.json`
+- `evaluation_summary.json`
+- `artifact_manifest.json`
 
-1. `prepare_data`
-2. `train_model`
-3. `evaluate_model`
-4. `publish_artifact_metadata`
+`scripts/compile_pipeline.py` compiles the pipeline to `artifacts/pipelines/machledata_pipeline.yaml`. `scripts/submit_vertex_pipeline.py` submits that package to Vertex AI Pipelines with explicit GCP settings. Nothing is submitted to GCP automatically during tests.
 
-The publish step stops at writing validated, deployment-facing metadata such as model artifact location, config snapshots, and evaluation outputs. It does not deploy the FastAPI app or dashboard.
+## API and Dashboard Contract
 
-### Local Airflow Run
+The FastAPI app exposes:
 
-Initialize the Airflow metadata database and admin user:
-
-```bash
-docker compose -f docker/docker-compose.yml up airflow-init
-```
-
-Start the Airflow services:
-
-```bash
-docker compose -f docker/docker-compose.yml up airflow-webserver airflow-scheduler airflow-triggerer
-```
-
-Open the UI at `http://localhost:8080` and sign in with `admin` / `admin`.
-
-Trigger `machledata_ml_pipeline` manually and optionally pass DAG run config such as:
+- `GET /health`: returns `{"status": "ok"}`
+- `POST /predict`: accepts an uploaded image and returns:
 
 ```json
 {
-  "dataset_id": "machledata-demo",
-  "model_name": "yolov8n",
-  "epochs": 5,
-  "artifact_root": "/opt/airflow/artifacts",
-  "run_label": "course-demo"
+  "detections": [
+    {
+      "class_name": "object",
+      "confidence": 0.9,
+      "bbox": [0.0, 0.0, 10.0, 10.0]
+    }
+  ],
+  "annotated_image_base64": null
 }
 ```
 
-Published outputs are written under `artifacts/` locally and are mounted into the Airflow containers at `/opt/airflow/artifacts`.
+The endpoint currently returns an empty detection list until real inference is implemented. The dashboard already consumes this response shape.
 
-## API and Dashboard
+## Configuration
 
-The FastAPI app currently exposes:
+Committed YAML files in `configs/` define the initial project shape:
 
-- `GET /health`: returns `{"status": "ok"}`
-- `POST /predict`: returns an empty detection list until inference is implemented
+- `configs/model.yaml`: model name, image size, batch size, epochs, artifact directory
+- `configs/data.yaml`: BigQuery-oriented dataset settings and sample directory
+- `configs/app.yaml`: app title, model artifact path, and confidence threshold
+- `configs/pipeline.yaml`: Kubeflow/Vertex defaults such as image URI, pipeline root, region, and artifact root
 
-The Streamlit dashboard provides a local monitoring and demo surface. It accepts image uploads, sends them to the API, displays detection counts, renders a confidence chart and detection table when detections are present, and can show an annotated image when the API returns one.
+Keep secrets and environment-specific values out of Git. Use `.env` or deployment configuration for credentials and sensitive settings.
 
-Because the API prediction endpoint is still a placeholder, the dashboard currently represents the intended end-to-end user flow rather than real model inference. Before using it as a live demo, align the API response contract with the dashboard fields: `detections`, `class_name`, `confidence`, `bbox`, and optional `annotated_image_base64`.
+Relevant environment variables:
 
-The Airflow pipeline is the orchestration path for preparing data, training a model, evaluating outputs, and publishing deployment-facing metadata. It stops at artifact and manifest creation so the API or dashboard can consume validated outputs later.
+- `GOOGLE_CLOUD_PROJECT`
+- `BIGQUERY_DATASET`
+- `MODEL_ARTIFACT_PATH`
+- `MACHLEDATA_PIPELINE_IMAGE`
+- `VERTEX_REGION`
+- `VERTEX_PIPELINE_ROOT`
+- `VERTEX_SERVICE_ACCOUNT`
 
 ## CI/CD and Deployment
 
-The GitHub Actions workflow in `.github/workflows/deploy.yaml` runs on pushes and pull requests targeting `main` or `develop`, and on version tags matching `v*`.
-
-The workflow has three stages:
-
-1. `test`: installs the package with development dependencies, runs pytest with coverage, and uploads coverage output to Codecov.
-2. `build`: builds `docker/Dockerfile` with Docker Buildx and pushes the image to Docker Hub on push events.
-3. `deploy`: on pushes to `main`, connects to a remote VPS over SSH, pulls the latest image, and restarts the Docker Compose stack.
+The GitHub Actions workflow runs tests, compiles the Kubeflow pipeline, builds the Docker image, pushes it to Docker Hub, and deploys the API stack to a remote VPS on pushes to `main`.
 
 The deployment workflow expects these repository secrets:
 
@@ -183,31 +175,13 @@ The deployment workflow expects these repository secrets:
 - `SSH_PRIVATE_KEY`
 - `REMOTE_APP_DIR`
 
-## Configuration
-
-Committed YAML files in `configs/` define the initial project shape:
-
-- `configs/model.yaml`: model name, image size, batch size, epochs, artifact directory
-- `configs/data.yaml`: BigQuery-oriented dataset settings and sample directory
-- `configs/app.yaml`: app title, model artifact path, and confidence threshold
-
-Keep secrets and environment-specific values out of Git. Use `.env` or deployment configuration for credentials and sensitive settings.
-
-For the Airflow pipeline, the most relevant variables are:
-
-- `GOOGLE_CLOUD_PROJECT`
-- `BIGQUERY_DATASET`
-- `MODEL_ARTIFACT_PATH`
-- `AIRFLOW_UID` for local Docker file ownership if needed
-
-For CI/CD, configure Docker Hub and remote server credentials as GitHub Actions secrets rather than local environment variables.
-
 ## Development Notes
 
 - Target Python 3.10 or newer
-- Keep package logic in `src/machledata/` and leave apps, scripts, and workflows thin
+- Keep package logic in `src/machledata/`; leave apps, scripts, and workflows thin
+- Use `machledata.pipeline_steps` as the container boundary for Kubeflow steps
 - Avoid committing generated artifacts, large datasets, caches, virtual environments, or trained model weights
-- Prefer adding tests alongside new behavior, especially for inference, metrics, API routes, and data helpers
+- Prefer adding tests alongside new behavior, especially for inference, metrics, API routes, data helpers, and pipeline contracts
 
 ## Related Docs
 

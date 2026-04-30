@@ -1,4 +1,4 @@
-"""Training orchestration helpers for local and Airflow-triggered runs.
+"""Training orchestration helpers for local and Kubeflow-triggered runs.
 
 The concrete trainer should fine-tune the selected YOLO model, write metrics,
 and persist model artifacts outside Git.
@@ -23,4 +23,3 @@ def create_training_run(
 ) -> TrainingRun:
     """Create training metadata before invoking the real trainer."""
     return TrainingRun(model_name=model_name, epochs=epochs, artifact_dir=artifact_dir)
-

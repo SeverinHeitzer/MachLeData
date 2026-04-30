@@ -6,7 +6,7 @@ This repository is the MachLeData course project: a YOLO-oriented object detecti
 
 - `src/machledata/` for reusable Python package code
 - `apps/` for thin FastAPI and Streamlit entry points
-- `workflows/` for orchestration definitions such as Airflow DAGs
+- `workflows/` for orchestration definitions such as Kubeflow pipelines
 - `scripts/` for local command-line helpers
 - `configs/` for YAML settings that are safe to commit
 - `tests/` for pytest coverage of package and app behavior
@@ -28,8 +28,8 @@ Use the Python project metadata in `pyproject.toml`:
 - `python scripts/train.py` smoke-tests the training entry point
 - `python scripts/predict.py` smoke-tests the prediction CLI
 - `python scripts/evaluate.py` smoke-tests the evaluation CLI
-- `docker compose -f docker/docker-compose.yml up airflow-init` initializes the local Airflow metadata database
-- `docker compose -f docker/docker-compose.yml up airflow-webserver airflow-scheduler airflow-triggerer` runs the Airflow stack locally
+- `python scripts/compile_pipeline.py --image-uri machledata:local` compiles the Kubeflow pipeline package
+- `python scripts/submit_vertex_pipeline.py --project-id "$GOOGLE_CLOUD_PROJECT" --region "$VERTEX_REGION" --pipeline-root "$VERTEX_PIPELINE_ROOT" --template-path artifacts/pipelines/machledata_pipeline.yaml` submits the compiled package to Vertex AI
 - `python -m uvicorn apps.api:app --reload` runs the API locally
 - `streamlit run apps/dashboard.py` runs the dashboard locally
 
@@ -41,13 +41,13 @@ Write Python using PEP 8 with 4-space indentation, `snake_case` for functions an
 
 Prefer type hints and concise docstrings. Skeleton files should include short module docstrings explaining their role in the pipeline, especially when the concrete implementation is still a stub.
 
-For Airflow work, keep DAG code thin and push logic into `src/machledata/` or `scripts/` so local CLI runs and orchestrated runs stay aligned.
+For Kubeflow work, keep pipeline code thin and push logic into `src/machledata/` or `scripts/` so local CLI runs and orchestrated runs stay aligned.
 
 ## Testing Guidelines
 
 Use `pytest` for unit and integration tests. Name test files `test_*.py` and test functions `test_*`. Mirror behavior where practical, for example `tests/test_infer.py` for `machledata.infer`.
 
-Prioritize tests for data access helpers, inference behavior, metrics, CLI seams, and API routes. Avoid tests that require GPU access, cloud credentials, Airflow services, or large local datasets.
+Prioritize tests for data access helpers, inference behavior, metrics, CLI seams, API routes, and Kubeflow pipeline compilation. Avoid tests that require GPU access, cloud credentials, Vertex AI services, or large local datasets.
 
 ## Commit & Pull Request Guidelines
 

@@ -1,12 +1,13 @@
-"""FastAPI application for serving object detection predictions.
+"""FastAPI application for serving object detection predictions."""
 
-The API should expose lightweight inference endpoints backed by
-`machledata.infer` and avoid loading cloud credentials at import time.
-"""
+from __future__ import annotations
 
-from fastapi import FastAPI
+import tempfile
+from pathlib import Path
 
-from machledata.infer import Detection
+from fastapi import FastAPI, File, UploadFile
+
+from machledata.infer import PredictionResponse, predict_image
 
 app = FastAPI(title="MachLeData Object Detection API")
 
@@ -17,8 +18,20 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.post("/predict")
-def predict() -> list[Detection]:
+@app.post("/predict", response_model=PredictionResponse)
+async def predict(
+    file: UploadFile | None = File(default=None),
+    return_annotated: bool = False,
+    confidence_threshold: float = 0.25,
+) -> PredictionResponse:
     """Return object detections for an uploaded image once inference is wired in."""
-    return []
+    _ = return_annotated, confidence_threshold
+    if file is None:
+        return PredictionResponse(detections=[])
 
+    suffix = Path(file.filename or "upload").suffix
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=True) as tmp:
+        tmp.write(await file.read())
+        tmp.flush()
+        detections = predict_image(tmp.name)
+    return PredictionResponse(detections=detections)

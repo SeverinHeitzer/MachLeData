@@ -1,15 +1,14 @@
 import base64
 import io
+import os
 
-import cv2
-import numpy as np
 import pandas as pd
 import plotly.express as px
 import requests
 import streamlit as st
 from PIL import Image
 
-API_URL = "http://localhost:8000/predict"
+API_URL = os.getenv("MACHLEDATA_API_URL", "http://localhost:8000/predict")
 
 st.set_page_config(page_title="YOLO Detection Dashboard", layout="wide")
 st.title("📸 YOLO Object Detection – Live Monitoring")
@@ -30,8 +29,17 @@ if uploaded_file is not None:
     col1.image(original, caption="Original Image", use_column_width=True)
     
     # Send to API
-    files = {"file": uploaded_file.getvalue()}
-    params = {"return_annotated": return_annotated}
+    files = {
+        "file": (
+            uploaded_file.name,
+            uploaded_file.getvalue(),
+            uploaded_file.type or "application/octet-stream",
+        )
+    }
+    params = {
+        "return_annotated": return_annotated,
+        "confidence_threshold": confidence_threshold,
+    }
     
     with st.spinner("Detecting..."):
         response = requests.post(API_URL, files=files, params=params)

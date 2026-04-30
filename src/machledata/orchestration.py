@@ -1,4 +1,4 @@
-"""Serializable orchestration helpers shared by Airflow and local CLIs."""
+"""Serializable orchestration helpers shared by Kubeflow and local CLIs."""
 
 from __future__ import annotations
 
@@ -16,7 +16,8 @@ from machledata.metrics import summarize_detections
 from machledata.train import create_training_run
 
 
-DEFAULT_ARTIFACT_ROOT = "artifacts"
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_ARTIFACT_ROOT = os.getenv("MACHLEDATA_ARTIFACT_ROOT", "artifacts")
 DEFAULT_DATA_CONFIG = "configs/data.yaml"
 DEFAULT_MODEL_CONFIG = "configs/model.yaml"
 DEFAULT_APP_CONFIG = "configs/app.yaml"
@@ -24,7 +25,7 @@ DEFAULT_APP_CONFIG = "configs/app.yaml"
 
 def load_yaml_config(path: str | Path) -> dict[str, Any]:
     """Load a YAML file into a plain dictionary."""
-    content = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
+    content = yaml.safe_load(_project_path(path).read_text(encoding="utf-8")) or {}
     if not isinstance(content, dict):
         raise ValueError(f"Expected a mapping in {path}")
     return _expand_env_placeholders(content)
@@ -53,7 +54,7 @@ def prepare_dataset(
     prepared_dir = Path(artifact_root) / "prepared" / label
     prepared_dir.mkdir(parents=True, exist_ok=True)
 
-    sample_paths = load_sample_paths(samples_dir)
+    sample_paths = load_sample_paths(_project_path(samples_dir))
     source_uri = (
         describe_bigquery_source(project_id, bigquery_dataset)
         if project_id and bigquery_dataset
@@ -63,7 +64,7 @@ def prepare_dataset(
         "dataset_id": dataset_id,
         "run_label": run_label or label,
         "prepared_dir": str(prepared_dir.resolve()),
-        "samples_dir": str(Path(samples_dir)),
+        "samples_dir": str(_project_path(samples_dir)),
         "sample_count": len(sample_paths),
         "sample_files": [path.name for path in sample_paths],
         "source_type": "bigquery" if project_id and bigquery_dataset else "local",
@@ -204,6 +205,7 @@ def publish_artifact_manifest(
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
 
 
@@ -233,3 +235,8 @@ def _expand_env_placeholders(value: Any) -> Any:
     if isinstance(value, str):
         return os.path.expandvars(value)
     return value
+
+
+def _project_path(path: str | Path) -> Path:
+    candidate = Path(path)
+    return candidate if candidate.is_absolute() else PROJECT_ROOT / candidate

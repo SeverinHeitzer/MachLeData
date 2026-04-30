@@ -13,3 +13,18 @@ def test_health_endpoint() -> None:
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
 
+
+def test_predict_endpoint_returns_dashboard_contract() -> None:
+    """Prediction endpoint returns the shared response object."""
+    client = TestClient(app)
+    response = client.post(
+        "/predict",
+        files={"file": ("sample.jpg", b"not-an-image", "image/jpeg")},
+        params={"return_annotated": "true", "confidence_threshold": "0.5"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "annotated_image_base64": None,
+        "detections": [],
+    }

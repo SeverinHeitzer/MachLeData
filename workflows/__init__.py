@@ -1,1 +1,1 @@
-"""Workflow orchestration helpers and DAG definitions."""
+"""Workflow orchestration helpers and Kubeflow pipeline definitions."""

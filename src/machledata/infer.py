@@ -1,20 +1,23 @@
-"""Inference helpers for YOLO object detection.
+"""Inference helpers and schemas for YOLO object detection."""
 
-Applications and scripts should call this module instead of depending directly
-on model-library-specific prediction APIs.
-"""
-
-from dataclasses import dataclass
 from pathlib import Path
 
+from pydantic import BaseModel, Field
 
-@dataclass(frozen=True)
-class Detection:
+
+class Detection(BaseModel):
     """Single object detection result returned by the inference layer."""
 
-    label: str
-    confidence: float
-    bbox_xyxy: tuple[float, float, float, float]
+    class_name: str
+    confidence: float = Field(ge=0.0, le=1.0)
+    bbox: tuple[float, float, float, float]
+
+
+class PredictionResponse(BaseModel):
+    """Response returned by the API and consumed by the dashboard."""
+
+    detections: list[Detection]
+    annotated_image_base64: str | None = None
 
 
 def predict_image(image_path: str | Path) -> list[Detection]:
@@ -28,4 +31,3 @@ def predict_image(image_path: str | Path) -> list[Detection]:
     """
     _ = Path(image_path)
     return []
-

@@ -7,6 +7,9 @@ references, and prepare small YOLO-compatible training or test samples.
 from pathlib import Path
 
 
+IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
+
+
 def load_sample_paths(samples_dir: str | Path = "data/samples") -> list[Path]:
     """Return local sample files used for tests and offline demos.
 
@@ -19,7 +22,11 @@ def load_sample_paths(samples_dir: str | Path = "data/samples") -> list[Path]:
     path = Path(samples_dir)
     if not path.exists():
         return []
-    return sorted(item for item in path.iterdir() if item.is_file())
+    return sorted(
+        item
+        for item in path.iterdir()
+        if item.is_file() and item.suffix.lower() in IMAGE_EXTENSIONS
+    )
 
 
 def describe_bigquery_source(project_id: str, dataset: str) -> str:
@@ -33,4 +40,3 @@ def describe_bigquery_source(project_id: str, dataset: str) -> str:
         A `project.dataset` string for logs and documentation.
     """
     return f"{project_id}.{dataset}"
-

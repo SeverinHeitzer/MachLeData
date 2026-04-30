@@ -2,57 +2,59 @@
 
 ## End-to-End Shape
 
-MachLeData is structured around a thin-interface pattern:
+MachLeData uses a thin-interface pattern:
 
-- `src/machledata/` owns reusable data, training, evaluation, and orchestration code.
-- `scripts/` provide local smoke-testable entry points over the same package seams.
-- `workflows/airflow_dag.py` orchestrates the ML pipeline without embedding business logic.
-- `apps/api.py` and `apps/dashboard.py` are the downstream consumers of publish-ready artifacts and metadata.
+- `src/machledata/` owns reusable data, training, evaluation, inference, and orchestration code.
+- `machledata.pipeline_steps` adapts that package code to containerized Kubeflow steps.
+- `workflows/kubeflow_pipeline.py` describes the pipeline graph without embedding ML logic.
+- `apps/api.py` and `apps/dashboard.py` are downstream consumers of publish-ready artifacts and the shared prediction contract.
 
-## Airflow Pipeline
+## Kubeflow Pipeline
 
-The Docker-based Airflow stack is the local orchestration runtime for the course deliverable. The canonical DAG is `machledata_ml_pipeline`, and it is manual-trigger-first with `catchup=True` so the structure is compatible with later backfills.
+The canonical pipeline is `machledata-ml-pipeline`. It is defined with Kubeflow Pipelines v2 and is intended to run locally as compiled YAML or remotely through Vertex AI Pipelines.
 
 Pipeline stages:
 
-1. `prepare_data`
-2. `train_model`
-3. `evaluate_model`
-4. `publish_artifact_metadata`
+1. `prepare-data`
+2. `train-model`
+3. `evaluate-model`
+4. `publish-artifact-metadata`
 
 Stage contract:
 
-- `prepare_data` writes a dataset descriptor with source information, sample inventory, and a config snapshot.
-- `train_model` writes training metadata plus a model artifact placeholder path.
-- `evaluate_model` writes an evaluation summary with metrics and a pass/fail gate.
-- `publish_artifact_metadata` writes a serving-facing manifest only when evaluation passes.
+- `prepare-data` writes a dataset descriptor with source information, sample inventory, and a config snapshot.
+- `train-model` writes training metadata plus a model artifact placeholder path.
+- `evaluate-model` writes an evaluation summary with metrics and a pass/fail gate.
+- `publish-artifact-metadata` writes a serving-facing manifest only when evaluation passes.
 
-Simple DAG diagram:
+Simple pipeline diagram:
 
 ```text
-prepare_data -> train_model -> evaluate_model -> publish_artifact_metadata
+prepare-data -> train-model -> evaluate-model -> publish-artifact-metadata
 ```
 
-## Deployment Handoff
+## Vertex AI Handoff
 
-The first Airflow version intentionally stops at validated, publish-ready outputs. That handoff boundary is the `artifact_manifest.json` produced under `artifacts/published/<run_id>/`.
+The first Kubeflow version intentionally stops at validated, publish-ready outputs. That handoff boundary is the `artifact_manifest.json` produced by the publish stage.
 
-That manifest is designed to feed a later GCP-oriented serving path, for example:
+For Vertex AI Pipelines, artifacts should live under a `gs://` pipeline root supplied at submission time. The local placeholder `artifact_root` remains useful for CLI smoke tests and can later be replaced by a GCS-backed path when the real model and dataset are wired in.
 
-- model artifacts stored in GCS or another object store
+Future GCP integration points:
+
+- BigQuery metadata and image references in the data preparation step
+- model artifacts stored in GCS or Vertex Model Registry
 - metadata read by a FastAPI inference service
 - reports surfaced through the Streamlit dashboard
-- future deployment orchestration via Cloud Run, Composer, or CI/CD pipelines
+- optional deployment orchestration through Vertex AI, Cloud Run, or CI/CD
 
-Website hosting and rollout automation are intentionally outside the initial DAG scope.
+Website hosting and endpoint rollout are outside the initial pipeline scope.
 
 ## Local Runtime
 
-`docker/docker-compose.yml` runs:
+`docker/docker-compose.yml` runs the API service for local app work. Kubeflow pipeline compilation is performed from the Python environment with:
 
-- Postgres for Airflow metadata
-- `airflow-init` for database migration and user bootstrapping
-- Airflow webserver, scheduler, and triggerer
-- the existing API container for local app work
+```bash
+python scripts/compile_pipeline.py --image-uri machledata:local
+```
 
-The Airflow containers mount the repo `workflows/`, `src/`, `configs/`, and `scripts/` directories plus writable local directories for logs and artifacts.
+The compiled YAML can be uploaded to a Kubeflow-compatible backend or submitted to Vertex AI with `scripts/submit_vertex_pipeline.py`.

@@ -13,6 +13,7 @@ dependencies = [
     "fastapi",
     "pydantic",
     "pyyaml",
+    "python-multipart",
     "streamlit",
     "uvicorn[standard]",
     "numpy",
@@ -30,8 +31,11 @@ dev = [
     "pytest-cov",
     "httpx",
 ]
-airflow = [
-    "apache-airflow>=2.0.0",
+kubeflow = [
+    "kfp>=2,<3",
+]
+vertex = [
+    "google-cloud-aiplatform",
 ]
 
 [tool.pytest.ini_options]
