@@ -22,6 +22,10 @@ def main() -> None:
     parser.add_argument("--dataset-id", default="local-demo")
     parser.add_argument("--samples-dir", default="data/samples")
     parser.add_argument("--bigquery-dataset", default="")
+    parser.add_argument("--images-table", default="images")
+    parser.add_argument("--labels-table", default="labels")
+    parser.add_argument("--split", default="train")
+    parser.add_argument("--max-rows", type=int, default=0)
     parser.add_argument("--model-name", default="yolov8n")
     parser.add_argument("--epochs", type=int, default=10)
     parser.add_argument("--artifact-root", default=None)
@@ -64,6 +68,10 @@ def main() -> None:
             "samples_dir": args.samples_dir,
             "project_id": project_id,
             "bigquery_dataset": args.bigquery_dataset,
+            "images_table": args.images_table,
+            "labels_table": args.labels_table,
+            "split": args.split,
+            "max_rows": args.max_rows,
             "model_name": args.model_name,
             "epochs": args.epochs,
             "artifact_root": artifact_root,

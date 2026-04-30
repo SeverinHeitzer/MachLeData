@@ -41,13 +41,13 @@ Write Python using PEP 8 with 4-space indentation, `snake_case` for functions an
 
 Prefer type hints and concise docstrings. Skeleton files should include short module docstrings explaining their role in the pipeline, especially when the concrete implementation is still a stub.
 
-For Kubeflow work, keep pipeline code thin and push logic into `src/machledata/` or `scripts/` so local CLI runs and orchestrated runs stay aligned.
+For Kubeflow work, keep pipeline code thin and push logic into `src/machledata/` or `scripts/` so local CLI runs and orchestrated runs stay aligned. Preserve typed KFP v2 artifact interfaces for Vertex-facing pipeline components.
 
 ## Testing Guidelines
 
 Use `pytest` for unit and integration tests. Name test files `test_*.py` and test functions `test_*`. Mirror behavior where practical, for example `tests/test_infer.py` for `machledata.infer`.
 
-Prioritize tests for data access helpers, inference behavior, metrics, CLI seams, API routes, and Kubeflow pipeline compilation. Avoid tests that require GPU access, cloud credentials, Vertex AI services, or large local datasets.
+Prioritize tests for data access helpers, inference behavior, metrics, CLI seams, API routes, Kubeflow pipeline compilation, and Vertex submit parameter wiring. Avoid tests that require GPU access, cloud credentials, Vertex AI services, or large local datasets.
 
 ## Commit & Pull Request Guidelines
 

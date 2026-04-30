@@ -25,5 +25,8 @@ def test_kubeflow_pipeline_compiles(tmp_path: Path, monkeypatch) -> None:
     compiled = package_path.read_text(encoding="utf-8")
     assert "machledata-ml-pipeline" in compiled
     assert "example/machledata:test" in compiled
+    assert "system.Dataset" in compiled
+    assert "system.Model" in compiled
+    assert "system.Metrics" in compiled
     for task_id in pipeline_module.TASK_SEQUENCE:
         assert task_id in compiled

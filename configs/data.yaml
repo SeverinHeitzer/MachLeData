@@ -5,3 +5,18 @@ source: bigquery
 project_id: ${GOOGLE_CLOUD_PROJECT}
 dataset: ${BIGQUERY_DATASET}
 samples_dir: data/samples
+images_table: images
+labels_table: labels
+split: train
+image_id_column: image_id
+image_uri_column: image_uri
+split_column: split
+width_column: width
+height_column: height
+label_image_id_column: image_id
+class_column: class_name
+bbox_columns:
+  x_min: x_min
+  y_min: y_min
+  x_max: x_max
+  y_max: y_max

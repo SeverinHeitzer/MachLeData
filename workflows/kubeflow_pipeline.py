@@ -21,9 +21,13 @@ def prepare_data_component(
     samples_dir: str,
     project_id: str,
     bigquery_dataset: str,
+    images_table: str,
+    labels_table: str,
+    split: str,
+    max_rows: int,
     artifact_root: str,
     run_label: str,
-    prepared_dataset: dsl.Output[dsl.Artifact],
+    prepared_dataset: dsl.Output[dsl.Dataset],
 ) -> dsl.ContainerSpec:
     return dsl.ContainerSpec(
         image=PIPELINE_IMAGE,
@@ -37,6 +41,14 @@ def prepare_data_component(
             project_id,
             "--bigquery-dataset",
             bigquery_dataset,
+            "--images-table",
+            images_table,
+            "--labels-table",
+            labels_table,
+            "--split",
+            split,
+            "--max-rows",
+            max_rows,
             "--artifact-root",
             artifact_root,
             "--run-label",
@@ -49,12 +61,13 @@ def prepare_data_component(
 
 @dsl.container_component
 def train_model_component(
-    prepared_dataset: dsl.Input[dsl.Artifact],
+    prepared_dataset: dsl.Input[dsl.Dataset],
     model_name: str,
     epochs: int,
     artifact_root: str,
     run_label: str,
-    training_run: dsl.Output[dsl.Artifact],
+    model_artifact: dsl.Output[dsl.Model],
+    training_metadata: dsl.Output[dsl.Artifact],
 ) -> dsl.ContainerSpec:
     return dsl.ContainerSpec(
         image=PIPELINE_IMAGE,
@@ -70,18 +83,22 @@ def train_model_component(
             artifact_root,
             "--run-label",
             run_label,
-            "--output-path",
-            training_run.path,
+            "--model-output-path",
+            model_artifact.path,
+            "--metadata-output-path",
+            training_metadata.path,
         ],
     )
 
 
 @dsl.container_component
 def evaluate_model_component(
-    prepared_dataset: dsl.Input[dsl.Artifact],
+    prepared_dataset: dsl.Input[dsl.Dataset],
+    model_artifact: dsl.Input[dsl.Model],
     training_run: dsl.Input[dsl.Artifact],
     min_detections_per_image: float,
     evaluation_summary: dsl.Output[dsl.Artifact],
+    evaluation_metrics: dsl.Output[dsl.Metrics],
 ) -> dsl.ContainerSpec:
     return dsl.ContainerSpec(
         image=PIPELINE_IMAGE,
@@ -91,22 +108,29 @@ def evaluate_model_component(
             prepared_dataset.path,
             "--training-run-path",
             training_run.path,
+            "--model-artifact-path",
+            model_artifact.path,
             "--min-detections-per-image",
             min_detections_per_image,
-            "--output-path",
+            "--evaluation-output-path",
             evaluation_summary.path,
+            "--metrics-output-path",
+            evaluation_metrics.path,
         ],
     )
 
 
 @dsl.container_component
 def publish_artifact_metadata_component(
-    prepared_dataset: dsl.Input[dsl.Artifact],
+    prepared_dataset: dsl.Input[dsl.Dataset],
+    model_artifact: dsl.Input[dsl.Model],
     training_run: dsl.Input[dsl.Artifact],
     evaluation_summary: dsl.Input[dsl.Artifact],
+    evaluation_metrics: dsl.Input[dsl.Metrics],
     artifact_root: str,
     artifact_manifest: dsl.Output[dsl.Artifact],
 ) -> dsl.ContainerSpec:
+    _ = model_artifact, evaluation_metrics
     return dsl.ContainerSpec(
         image=PIPELINE_IMAGE,
         command=[
@@ -124,7 +148,7 @@ def publish_artifact_metadata_component(
             evaluation_summary.path,
             "--artifact-root",
             artifact_root,
-            "--output-path",
+            "--manifest-output-path",
             artifact_manifest.path,
         ],
     )
@@ -136,6 +160,10 @@ def machledata_pipeline(
     samples_dir: str = "data/samples",
     project_id: str = "",
     bigquery_dataset: str = "",
+    images_table: str = "images",
+    labels_table: str = "labels",
+    split: str = "train",
+    max_rows: int = 0,
     model_name: str = "yolov8n",
     epochs: int = 10,
     artifact_root: str = "/tmp/machledata-artifacts",
@@ -148,6 +176,10 @@ def machledata_pipeline(
         samples_dir=samples_dir,
         project_id=project_id,
         bigquery_dataset=bigquery_dataset,
+        images_table=images_table,
+        labels_table=labels_table,
+        split=split,
+        max_rows=max_rows,
         artifact_root=artifact_root,
         run_label=run_label,
     )
@@ -160,12 +192,15 @@ def machledata_pipeline(
     )
     evaluated = evaluate_model_component(
         prepared_dataset=prepared.outputs["prepared_dataset"],
-        training_run=trained.outputs["training_run"],
+        model_artifact=trained.outputs["model_artifact"],
+        training_run=trained.outputs["training_metadata"],
         min_detections_per_image=min_detections_per_image,
     )
     publish_artifact_metadata_component(
         prepared_dataset=prepared.outputs["prepared_dataset"],
-        training_run=trained.outputs["training_run"],
+        model_artifact=trained.outputs["model_artifact"],
+        training_run=trained.outputs["training_metadata"],
         evaluation_summary=evaluated.outputs["evaluation_summary"],
+        evaluation_metrics=evaluated.outputs["evaluation_metrics"],
         artifact_root=artifact_root,
     )

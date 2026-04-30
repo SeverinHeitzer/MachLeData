@@ -48,6 +48,16 @@ def test_submit_vertex_pipeline_uses_compiled_template(
             "gs://bucket/root",
             "--template-path",
             str(template),
+            "--bigquery-dataset",
+            "dataset",
+            "--images-table",
+            "images",
+            "--labels-table",
+            "labels",
+            "--split",
+            "train",
+            "--max-rows",
+            "10",
             "--service-account",
             "runner@example.iam.gserviceaccount.com",
         ],
@@ -59,4 +69,9 @@ def test_submit_vertex_pipeline_uses_compiled_template(
     assert created["template_path"] == str(template)
     assert created["pipeline_root"] == "gs://bucket/root"
     assert created["parameter_values"]["project_id"] == "project"
+    assert created["parameter_values"]["bigquery_dataset"] == "dataset"
+    assert created["parameter_values"]["images_table"] == "images"
+    assert created["parameter_values"]["labels_table"] == "labels"
+    assert created["parameter_values"]["split"] == "train"
+    assert created["parameter_values"]["max_rows"] == 10
     assert created["service_account"] == "runner@example.iam.gserviceaccount.com"

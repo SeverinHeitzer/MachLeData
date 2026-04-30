@@ -39,6 +39,7 @@ def test_prepare_train_evaluate_publish_step_cli_round_trip(
     main()
 
     training_path = tmp_path / "training_run.json"
+    model_path = tmp_path / "model" / "model-placeholder.bin"
     monkeypatch.setattr(
         "sys.argv",
         [
@@ -54,7 +55,9 @@ def test_prepare_train_evaluate_publish_step_cli_round_trip(
             str(artifact_root),
             "--run-label",
             "unit",
-            "--output-path",
+            "--model-output-path",
+            str(model_path),
+            "--metadata-output-path",
             str(training_path),
         ],
     )
@@ -70,8 +73,12 @@ def test_prepare_train_evaluate_publish_step_cli_round_trip(
             str(prepared_path),
             "--training-run-path",
             str(training_path),
-            "--output-path",
+            "--model-artifact-path",
+            str(model_path),
+            "--evaluation-output-path",
             str(evaluation_path),
+            "--metrics-output-path",
+            str(tmp_path / "metrics.json"),
         ],
     )
     main()
@@ -90,7 +97,7 @@ def test_prepare_train_evaluate_publish_step_cli_round_trip(
             str(evaluation_path),
             "--artifact-root",
             str(artifact_root),
-            "--output-path",
+            "--manifest-output-path",
             str(manifest_path),
         ],
     )
@@ -99,4 +106,5 @@ def test_prepare_train_evaluate_publish_step_cli_round_trip(
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert manifest["dataset"]["dataset_id"] == "demo"
     assert manifest["model"]["model_name"] == "yolov8n"
+    assert manifest["model"]["artifact_path"] == str(model_path.resolve())
     assert manifest["evaluation"]["passed"] is True

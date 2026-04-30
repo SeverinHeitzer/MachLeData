@@ -24,22 +24,22 @@ Pipeline stages:
 
 Stage contract:
 
-- `prepare-data` writes a dataset descriptor with source information, sample inventory, and a config snapshot.
-- `train-model` writes training metadata plus a model artifact placeholder path.
-- `evaluate-model` writes an evaluation summary with metrics and a pass/fail gate.
-- `publish-artifact-metadata` writes a serving-facing manifest only when evaluation passes.
+- `prepare-data` writes a `system.Dataset` descriptor with source information, sample inventory, optional BigQuery annotation rows, and a config snapshot.
+- `train-model` writes a `system.Model` artifact path plus `system.Artifact` training metadata.
+- `evaluate-model` reads the typed dataset/model/metadata inputs and writes a `system.Artifact` evaluation summary plus `system.Metrics`.
+- `publish-artifact-metadata` reads the typed upstream artifacts and writes a serving-facing `system.Artifact` manifest only when evaluation passes.
 
-Pipeline step adapters are exposed through `python -m machledata.pipeline_steps`. They accept simple command-line values and file paths, then read or write JSON payloads. This makes the same code usable from local smoke tests, Kubeflow containers, and Vertex AI Pipelines.
+Pipeline step adapters are exposed through `python -m machledata.pipeline_steps`. They accept simple command-line values and KFP-provided artifact paths, then read or write JSON payloads inside those paths. This keeps local smoke tests, Kubeflow containers, and Vertex AI Pipelines aligned while preserving the typed Vertex artifact graph.
 
 Simple pipeline diagram:
 
 ```text
-prepare-data -> train-model -> evaluate-model -> publish-artifact-metadata
+Dataset -> Model + TrainingMetadata -> EvaluationSummary + Metrics -> Manifest
 ```
 
 ## Vertex AI Handoff
 
-The first Kubeflow version intentionally stops at validated, publish-ready outputs. That handoff boundary is the `artifact_manifest.json` produced by the publish stage.
+The first Kubeflow version intentionally stops at validated, publish-ready outputs. That handoff boundary is the manifest artifact produced by the publish stage.
 
 For Vertex AI Pipelines, artifacts should live under a `gs://` pipeline root supplied at submission time. The local placeholder `artifact_root` remains useful for CLI smoke tests and can later be replaced by a GCS-backed path when the real model and dataset are wired in.
 
@@ -57,12 +57,16 @@ python scripts/submit_vertex_pipeline.py \
   --project-id "$GOOGLE_CLOUD_PROJECT" \
   --region "$VERTEX_REGION" \
   --pipeline-root "$VERTEX_PIPELINE_ROOT" \
-  --template-path artifacts/pipelines/machledata_pipeline.yaml
+  --template-path artifacts/pipelines/machledata_pipeline.yaml \
+  --bigquery-dataset "$BIGQUERY_DATASET" \
+  --images-table images \
+  --labels-table labels \
+  --split train
 ```
 
 Future GCP integration points:
 
-- BigQuery metadata and image references in the data preparation step
+- real BigQuery credentials, dataset, and image references in the data preparation step
 - model artifacts stored in GCS or Vertex Model Registry
 - metadata read by a FastAPI inference service
 - reports surfaced through the Streamlit dashboard

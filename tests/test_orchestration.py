@@ -48,20 +48,27 @@ def test_train_evaluate_publish_contracts_round_trip(tmp_path: Path) -> None:
         epochs=5,
         artifact_root=tmp_path / "artifacts",
         run_label="unit-test",
+        model_artifact_path=tmp_path / "kfp-model" / "model.bin",
+        training_metadata_path=tmp_path / "kfp-training" / "training_run.json",
     )
     evaluation_summary = evaluate_model(
         prepared_dataset=prepared,
         training_run=training_run,
+        model_artifact_path=training_run["model_artifact_path"],
+        evaluation_output_path=tmp_path / "kfp-evaluation" / "evaluation_summary.json",
+        metrics_output_path=tmp_path / "kfp-evaluation" / "metrics.json",
     )
     manifest = publish_artifact_manifest(
         prepared_dataset=prepared,
         training_run=training_run,
         evaluation_summary=evaluation_summary,
         artifact_root=tmp_path / "artifacts",
+        manifest_output_path=tmp_path / "kfp-manifest" / "artifact_manifest.json",
     )
 
     assert training_run["epochs"] == 5
     assert Path(training_run["model_artifact_path"]).exists()
     assert evaluation_summary["passed"] is True
+    assert Path(evaluation_summary["metrics_path"]).exists()
     assert manifest["model"]["artifact_path"] == training_run["model_artifact_path"]
     assert Path(manifest["manifest_path"]).exists()
