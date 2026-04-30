@@ -21,7 +21,6 @@ def test_prediction_schema_matches_api_and_dashboard_contract() -> None:
     )
 
     assert response.model_dump() == {
-        "annotated_image_base64": None,
         "detections": [
             {
                 "bbox": (1.0, 2.0, 3.0, 4.0),

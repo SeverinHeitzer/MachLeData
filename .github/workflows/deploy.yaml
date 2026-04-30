@@ -125,6 +125,10 @@ jobs:
             docker compose -f docker/docker-compose.yml down || true
             
             echo "Starting services with docker compose"
-            MACHLEDATA_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest docker compose -f docker/docker-compose.yml up -d
-            
+            export MACHLEDATA_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            docker compose -f docker/docker-compose.yml up -d
+
+            echo "Waiting for service to become healthy"
+            sleep 5 && curl --fail --silent http://localhost:8000/health
+
             echo "Deployment completed successfully"

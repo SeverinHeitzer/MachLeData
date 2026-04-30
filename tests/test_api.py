@@ -20,11 +20,8 @@ def test_predict_endpoint_returns_dashboard_contract() -> None:
         response = client.post(
             "/predict",
             files={"file": ("sample.jpg", b"not-an-image", "image/jpeg")},
-            params={"return_annotated": "true", "confidence_threshold": "0.5"},
+            params={"confidence_threshold": "0.5"},
         )
 
     assert response.status_code == 200
-    assert response.json() == {
-        "annotated_image_base64": None,
-        "detections": [],
-    }
+    assert response.json() == {"detections": []}
