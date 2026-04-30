@@ -116,12 +116,12 @@ def main() -> None:
                     # Show detections table
                     detection_data = [
                         {
-                            "Class": d.label,
+                            "Class": d.class_name,
                             "Confidence": f"{d.confidence:.4f}",
-                            "X1": f"{d.bbox_xyxy[0]:.0f}",
-                            "Y1": f"{d.bbox_xyxy[1]:.0f}",
-                            "X2": f"{d.bbox_xyxy[2]:.0f}",
-                            "Y2": f"{d.bbox_xyxy[3]:.0f}",
+                            "X1": f"{d.bbox[0]:.0f}",
+                            "Y1": f"{d.bbox[1]:.0f}",
+                            "X2": f"{d.bbox[2]:.0f}",
+                            "Y2": f"{d.bbox[3]:.0f}",
                         }
                         for d in detections
                     ]
@@ -218,9 +218,9 @@ def main() -> None:
 
                     results[file.name] = [
                         {
-                            "class": d.label,
+                            "class": d.class_name,
                             "confidence": float(d.confidence),
-                            "bbox": list(d.bbox_xyxy),
+                            "bbox": list(d.bbox),
                         }
                         for d in detections
                     ]

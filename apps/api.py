@@ -36,19 +36,9 @@ def get_model_config() -> dict:
 @app.post("/predict", response_model=PredictionResponse)
 async def predict(
     file: UploadFile | None = File(default=None),
-    return_annotated: bool = False,
     confidence_threshold: float = 0.25,
 ) -> PredictionResponse:
-    """Return object detections for an uploaded image.
-    
-    Args:
-        file: Image file to process.
-        return_annotated: Whether to return base64-encoded annotated image.
-        confidence_threshold: Detection confidence threshold.
-    
-    Returns:
-        PredictionResponse with detections.
-    """
+    """Return object detections for an uploaded image."""
     if file is None:
         return PredictionResponse(detections=[])
 
