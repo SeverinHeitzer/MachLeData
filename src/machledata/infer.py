@@ -1,5 +1,6 @@
 """Inference helpers and schemas for YOLO object detection."""
 
+import threading
 from pathlib import Path
 
 import torch
@@ -21,11 +22,10 @@ class PredictionResponse(BaseModel):
     """Response returned by the API and consumed by the dashboard."""
 
     detections: list[Detection]
-    annotated_image_base64: str | None = None
 
 
-# Global model cache to avoid repeated loading
-_model_cache = {}
+_model_cache: dict = {}
+_model_cache_lock = threading.Lock()
 
 
 def predict_image(
@@ -50,15 +50,14 @@ def predict_image(
     if config is None:
         config = build_model_config()
 
-    # Load model (use cache to avoid repeated loading)
     model_key = str(model_path or config.model_name)
-    if model_key not in _model_cache:
-        if model_path and Path(model_path).exists():
-            _model_cache[model_key] = load_saved_model(model_path)
-        else:
-            _model_cache[model_key] = load_model(config)
-
-    model = _model_cache[model_key]
+    with _model_cache_lock:
+        if model_key not in _model_cache:
+            if model_path and Path(model_path).exists():
+                _model_cache[model_key] = load_saved_model(model_path)
+            else:
+                _model_cache[model_key] = load_model(config)
+        model = _model_cache[model_key]
 
     # Run inference
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -119,5 +118,5 @@ def predict_batch(
 
 def clear_model_cache() -> None:
     """Clear the global model cache to free memory."""
-    global _model_cache
-    _model_cache.clear()
+    with _model_cache_lock:
+        _model_cache.clear()

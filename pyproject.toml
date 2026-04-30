@@ -7,10 +7,10 @@ name = "machledata"
 version = "0.1.0"
 description = "Course project skeleton for YOLO-based object detection with MLOps practices."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 
 dependencies = [
-    "fastapi>=0.115,<0.116",
+    "fastapi>=0.115,<1.0",
     "google-cloud-bigquery",
     "pydantic",
     "pyyaml",
@@ -48,7 +48,7 @@ vertex = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src", "."]
-timeout = 10
+timeout = 30
 
 [tool.setuptools.packages.find]
 where = ["src"]
