@@ -25,7 +25,7 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dataset-id", default=config_value(data_config, "dataset", "local-demo"))
-    parser.add_argument("--model-name", default=config_value(model_config, "model_name", "yolov8n"))
+    parser.add_argument("--model-name", default=None, help="YOLO model name")
     parser.add_argument("--epochs", type=int, default=int(config_value(model_config, "epochs", 10)))
     parser.add_argument("--batch-size", type=int, default=int(config_value(model_config, "batch_size", 8)))
     parser.add_argument("--artifact-root", default=DEFAULT_ARTIFACT_ROOT)
@@ -46,7 +46,7 @@ def main() -> None:
     # For real YOLO training with a dataset, integrate train_yolo_model
     run = train_model(
         prepared_dataset=prepared_dataset,
-        model_name=args.model_name,
+        model_name=args.model_name or config_value(model_config, "model_name", "yolov8n"),
         epochs=args.epochs,
         artifact_root=args.artifact_root,
         run_label=args.run_label,
@@ -56,7 +56,6 @@ def main() -> None:
     if args.dataset_path:
         config = build_model_config(
             model_name=args.model_name,
-            image_size=int(config_value(model_config, "image_size", 640)),
         )
         try:
             trained_model, training_metrics = train_yolo_model(

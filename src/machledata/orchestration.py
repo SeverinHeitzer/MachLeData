@@ -1,7 +1,5 @@
 """Serializable orchestration helpers shared by Kubeflow and local CLIs."""
 
-from __future__ import annotations
-
 import json
 import os
 import re
@@ -9,8 +7,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-import yaml
-
+from machledata.config import PROJECT_ROOT, get_project_path, load_yaml_config
 from machledata.data import (
     BigQueryDatasetConfig,
     describe_bigquery_source,
@@ -23,19 +20,10 @@ from machledata.train import create_training_run, train_yolo_model
 from machledata.model import build_model_config, save_model
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_ARTIFACT_ROOT = os.getenv("MACHLEDATA_ARTIFACT_ROOT", "artifacts")
 DEFAULT_DATA_CONFIG = "configs/data.yaml"
 DEFAULT_MODEL_CONFIG = "configs/model.yaml"
 DEFAULT_APP_CONFIG = "configs/app.yaml"
-
-
-def load_yaml_config(path: str | Path) -> dict[str, Any]:
-    """Load a YAML file into a plain dictionary."""
-    content = yaml.safe_load(_project_path(path).read_text(encoding="utf-8")) or {}
-    if not isinstance(content, dict):
-        raise ValueError(f"Expected a mapping in {path}")
-    return _expand_env_placeholders(content)
 
 
 def config_value(config: dict[str, Any], key: str, default: Any = None) -> Any:
@@ -66,7 +54,7 @@ def prepare_dataset(
     prepared_dir = Path(artifact_root) / "prepared" / label
     prepared_dir.mkdir(parents=True, exist_ok=True)
 
-    sample_paths = load_sample_paths(_project_path(samples_dir))
+    sample_paths = load_sample_paths(get_project_path(samples_dir))
     data_config = load_yaml_config(data_config_path)
     annotation_rows = _load_bigquery_rows(
         data_config=data_config,
@@ -103,7 +91,7 @@ def prepare_dataset(
     yolo_yaml_path = prepared_dir / "dataset.yaml"
     write_yolo_dataset_yaml(
         output_path=yolo_yaml_path,
-        train_image_dir=_project_path(samples_dir),
+        train_image_dir=get_project_path(samples_dir),
         class_names=class_names,
     )
 
@@ -111,7 +99,7 @@ def prepare_dataset(
         "dataset_id": dataset_id,
         "run_label": run_label or label,
         "prepared_dir": str(prepared_dir.resolve()),
-        "samples_dir": str(_project_path(samples_dir)),
+        "samples_dir": str(get_project_path(samples_dir)),
         "sample_count": image_count,
         "sample_files": [path.name for path in sample_paths],
         "annotation_count": len(annotation_rows),
@@ -169,7 +157,6 @@ def train_model(
             cfg = build_model_config(
                 model_name=model_name,
                 image_size=int(model_config.get("image_size", 640)),
-                confidence_threshold=0.25,
             )
             trained_model, yolo_metrics = train_yolo_model(
                 config=cfg,
@@ -348,21 +335,6 @@ def _build_run_id(model_name: str, run_label: str | None) -> str:
         parts.append(_normalize_label(run_label))
     parts.append(timestamp)
     return "-".join(parts)
-
-
-def _expand_env_placeholders(value: Any) -> Any:
-    if isinstance(value, dict):
-        return {key: _expand_env_placeholders(item) for key, item in value.items()}
-    if isinstance(value, list):
-        return [_expand_env_placeholders(item) for item in value]
-    if isinstance(value, str):
-        return os.path.expandvars(value)
-    return value
-
-
-def _project_path(path: str | Path) -> Path:
-    candidate = Path(path)
-    return candidate if candidate.is_absolute() else PROJECT_ROOT / candidate
 
 
 def _artifact_sibling_path(

@@ -37,6 +37,9 @@ def main() -> None:
     st.set_page_config(page_title="MachLeData Detection", layout="wide")
     st.title("🎯 MachLeData Object Detection Dashboard")
 
+    # Get defaults from central config
+    default_cfg = build_model_config()
+
     # Sidebar configuration
     with st.sidebar:
         st.header("⚙️ Settings")
@@ -49,13 +52,14 @@ def main() -> None:
         model_name = st.selectbox(
             "Model",
             ["yolov8n", "yolov8s", "yolov8m", "yolov8l"],
+            index=["yolov8n", "yolov8s", "yolov8m", "yolov8l"].index(default_cfg.model_name) if default_cfg.model_name in ["yolov8n", "yolov8s", "yolov8m", "yolov8l"] else 0,
             help="YOLO model variant",
         )
         image_size = st.slider(
             "Image Size",
             min_value=320,
             max_value=1280,
-            value=640,
+            value=default_cfg.image_size,
             step=64,
             help="Input image size for model",
         )
@@ -63,7 +67,7 @@ def main() -> None:
             "Confidence Threshold",
             min_value=0.0,
             max_value=1.0,
-            value=0.25,
+            value=default_cfg.confidence_threshold,
             step=0.05,
             help="Minimum detection confidence",
         )

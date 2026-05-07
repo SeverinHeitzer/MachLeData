@@ -10,6 +10,8 @@ from pathlib import Path
 import torch
 from ultralytics import YOLO
 
+from machledata.config import PROJECT_ROOT, load_yaml_config
+
 
 @dataclass(frozen=True)
 class ModelConfig:
@@ -21,15 +23,25 @@ class ModelConfig:
 
 
 def build_model_config(
-    model_name: str = "yolov8n",
-    image_size: int = 640,
-    confidence_threshold: float = 0.25,
+    model_name: str | None = None,
+    image_size: int | None = None,
+    confidence_threshold: float | None = None,
 ) -> ModelConfig:
-    """Create a typed model configuration for scripts and applications."""
+    """Create a typed model configuration for scripts and applications.
+
+    Defaults are merged from configs/model.yaml and configs/app.yaml.
+    """
+    # Load defaults from multiple sources
+    sources = ["configs/model.yaml", "configs/app.yaml"]
+    defaults = {}
+    for source in sources:
+        defaults.update(load_yaml_config(source))
+
     return ModelConfig(
-        model_name=model_name,
-        image_size=image_size,
-        confidence_threshold=confidence_threshold,
+        model_name=model_name or defaults.get("model_name", "yolov8n"),
+        image_size=image_size or defaults.get("image_size", 640),
+        confidence_threshold=confidence_threshold if confidence_threshold is not None 
+        else float(defaults.get("confidence_threshold", 0.25)),
     )
 
 

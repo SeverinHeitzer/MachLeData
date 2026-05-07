@@ -43,6 +43,7 @@ pip install -e ".[dev,kubeflow,vertex]"
 ### Architecture
 - **Isolation**: Keep core business logic inside `src/machledata/`. Keep `apps/`, `scripts/`, and `workflows/` as thin entry points.
 - **Pipeline Steps**: `machledata.pipeline_steps` acts as the container adapter for Kubeflow. It handles the translation between CLI arguments and KFP v2 typed artifacts (JSON payloads).
+- **Configuration Layer**: `machledata.config` provides a centralized source of truth for loading YAML settings and resolving project paths.
 - **Type Safety**: Use Pydantic models for API contracts and shared types (e.g., `machledata.infer.Detection`).
 
 ### Testing
@@ -51,5 +52,6 @@ pip install -e ".[dev,kubeflow,vertex]"
 
 ### Configuration
 - Use `configs/*.yaml` for static, version-controlled defaults.
-- Use `.env` or system environment variables for secrets (GCP project IDs, credentials, etc.).
+- **ENV Expansion**: All configurations loaded via `machledata.config.load_yaml_config` automatically expand `${ENV_VAR}` placeholders.
+- Use `.env` or system environment variables for secrets (GCP project IDs, credentials, etc.) and deployment-specific paths.
 - Refer to `docs/gcp_setup.md` for one-time environment preparation.

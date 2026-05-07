@@ -28,20 +28,20 @@ def main() -> None:
     )
     parser.add_argument(
         "--model-name",
-        default="yolov8n",
-        help="YOLO model to use (default: yolov8n)",
+        default=None,
+        help="YOLO model to use (default: from config)",
     )
     parser.add_argument(
         "--image-size",
         type=int,
-        default=640,
-        help="Input image size (default: 640)",
+        default=None,
+        help="Input image size (default: from config)",
     )
     parser.add_argument(
         "--confidence",
         type=float,
-        default=0.25,
-        help="Confidence threshold (default: 0.25)",
+        default=None,
+        help="Confidence threshold (default: from config)",
     )
     parser.add_argument(
         "--model-path",
@@ -50,7 +50,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    # Build config
+    # Build config (now correctly falls back to YAML defaults for None values)
     config = build_model_config(
         model_name=args.model_name,
         image_size=args.image_size,

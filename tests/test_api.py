@@ -14,8 +14,8 @@ def test_health_endpoint() -> None:
     assert response.json() == {"status": "ok"}
 
 
-def test_predict_endpoint_returns_dashboard_contract() -> None:
-    """Prediction endpoint returns the shared response object."""
+def test_predict_endpoint_with_invalid_image() -> None:
+    """Prediction endpoint returns 400 for invalid image data."""
     with TestClient(app) as client:
         response = client.post(
             "/predict",
@@ -23,5 +23,6 @@ def test_predict_endpoint_returns_dashboard_contract() -> None:
             params={"confidence_threshold": "0.5"},
         )
 
-    assert response.status_code == 200
-    assert response.json() == {"detections": []}
+    assert response.status_code == 400
+    assert "detail" in response.json()
+

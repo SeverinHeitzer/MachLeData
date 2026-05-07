@@ -2,18 +2,26 @@
 
 from __future__ import annotations
 
+import logging
 import tempfile
 from pathlib import Path
 
-from fastapi import FastAPI, File, UploadFile
-from PIL import Image
-
+from machledata.config import load_yaml_config
 from machledata.infer import PredictionResponse, predict_image
 from machledata.model import build_model_config
 
-app = FastAPI(title="MachLeData Object Detection API")
+# Setup basic logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# Default model configuration
+def load_app_config() -> dict:
+    """Load application serving configuration."""
+    return load_yaml_config("configs/app.yaml")
+
+_app_config = load_app_config()
+app = FastAPI(title=_app_config.get("api_title", "MachLeData Object Detection API"))
+
+# Default model configuration (now loads from configs/model.yaml and configs/app.yaml)
 _default_config = build_model_config()
 
 
@@ -36,7 +44,7 @@ def get_model_config() -> dict:
 @app.post("/predict", response_model=PredictionResponse)
 async def predict(
     file: UploadFile | None = File(default=None),
-    confidence_threshold: float = 0.25,
+    confidence_threshold: float | None = None,
 ) -> PredictionResponse:
     """Return object detections for an uploaded image."""
     if file is None:
@@ -50,21 +58,29 @@ async def predict(
 
             # Validate image
             try:
+                img = Image.open(tmppath)
+                img.verify()  # Check if it's a valid image file
+                # Re-open because verify() closes the file
                 Image.open(tmppath)
-            except Exception:
-                return PredictionResponse(detections=[])
+            except Exception as e:
+                logger.warning(f"Invalid image uploaded: {e}")
+                raise HTTPException(status_code=400, detail="Invalid image file")
 
-            # Run inference with custom threshold if provided
+            # Run inference
             config = _default_config
-            if confidence_threshold != _default_config.confidence_threshold:
+            if confidence_threshold is not None and confidence_threshold != _default_config.confidence_threshold:
                 config = build_model_config(
                     model_name=_default_config.model_name,
                     image_size=_default_config.image_size,
                     confidence_threshold=confidence_threshold,
                 )
 
+            logger.info(f"Running inference on {file.filename} with conf={config.confidence_threshold}")
             detections = predict_image(tmppath, config=config)
             return PredictionResponse(detections=detections)
 
-    except Exception:
-        return PredictionResponse(detections=[])
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Prediction error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
