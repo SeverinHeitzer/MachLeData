@@ -16,3 +16,13 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+
+  dashboard:
+    image: ${MACHLEDATA_IMAGE:-machledata:local}
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    command: streamlit run apps/dashboard.py --server.port 8501 --server.address 0.0.0.0
+    ports:
+      - "8501:8501"
+    restart: unless-stopped
