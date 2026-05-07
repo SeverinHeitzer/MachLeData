@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 import tempfile
 from pathlib import Path
+from fastapi import FastAPI, File, HTTPException, UploadFile
+from PIL import Image
 
 from machledata.config import load_yaml_config
 from machledata.infer import PredictionResponse, predict_image
