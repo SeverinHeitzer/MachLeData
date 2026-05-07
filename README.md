@@ -95,6 +95,11 @@ python scripts/submit_vertex_pipeline.py \
 docker compose -f docker/docker-compose.yml up api
 ```
 
+If already an image exists but a new build is needed run:
+```bash
+docker compose -f docker/docker-compose.yml build
+```
+
 ## Kubeflow and Vertex Pipeline
 
 The orchestration entry point is `workflows/kubeflow_pipeline.py`. It defines a single container-based Kubeflow Pipelines v2 workflow with four stages:
