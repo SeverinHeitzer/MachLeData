@@ -100,6 +100,17 @@ If already an image exists but a new build is needed run:
 docker compose -f docker/docker-compose.yml build
 ```
 
+
+To start only the dashboard run:
+```bash
+docker compose -f docker/docker-compose.yml up dashboard
+```
+
+To start the api and the dashboard run:
+```bash
+docker compose -f docker/docker-compose.yml up
+```
+
 ## Kubeflow and Vertex Pipeline
 
 The orchestration entry point is `workflows/kubeflow_pipeline.py`. It defines a single container-based Kubeflow Pipelines v2 workflow with four stages:

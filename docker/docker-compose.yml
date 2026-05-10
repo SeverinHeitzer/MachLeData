@@ -22,7 +22,7 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-    command: streamlit run apps/dashboard.py --server.port 8501 --server.address 0.0.0.0
+    command: streamlit run apps/dashboard.py --server.port 8501 --server.address 0.0.0.0 --logger.level=debug --client.showErrorDetails=false
     ports:
       - "8501:8501"
     restart: unless-stopped
