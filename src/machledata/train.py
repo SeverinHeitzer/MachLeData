@@ -40,18 +40,13 @@ def train_yolo_model(
     device: str | None = None,
 ) -> tuple[YOLO, dict]:
     """Train a YOLO model on the provided dataset.
-
-    Args:
-        config: ModelConfig with model settings.
-        dataset_path: Path to dataset (YAML file or directory).
-        epochs: Number of training epochs.
-        batch_size: Batch size for training.
-        artifact_dir: Directory to save model artifacts.
-        device: Device to train on ('cpu', 'cuda', etc.). Auto-detects if None.
-
-    Returns:
-        Tuple of (trained_model, training_metrics).
+    ...
     """
+    # Use a writable cache/config dir for Ultralytics.
+    import os
+    os.environ["YOLO_CONFIG_DIR"] = "/tmp/yolo_config"
+    os.makedirs("/tmp/yolo_config", exist_ok=True)
+    
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
 

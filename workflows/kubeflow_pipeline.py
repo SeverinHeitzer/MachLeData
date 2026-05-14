@@ -146,6 +146,7 @@ def machledata_pipeline(
         artifact_root=artifact_root,
         run_label=run_label,
     )  # type: ignore
+    prep_task.set_caching_options(False)
 
     train_task = train_model_component(
         prepared_dataset=prep_task.outputs["prepared_dataset"],
@@ -154,8 +155,9 @@ def machledata_pipeline(
         artifact_root=artifact_root,
         run_label=run_label,
     )  # type: ignore
-    if use_gpu:
-        train_task = train_task.set_accelerator_type("NVIDIA_TESLA_T4").set_accelerator_limit("1")
+    train_task.set_caching_options(False)
+    #if use_gpu:
+        #train_task = train_task.set_accelerator_type("NVIDIA_TESLA_T4").set_accelerator_limit("1")
 
     eval_task = evaluate_model_component(
         prepared_dataset=prep_task.outputs["prepared_dataset"],
@@ -163,8 +165,9 @@ def machledata_pipeline(
         training_run=train_task.outputs["training_metadata"],
         min_detections_per_image=min_detections_per_image,
     )  # type: ignore
+    eval_task.set_caching_options(False)
 
-    publish_artifact_metadata_component(
+    publish_task = publish_artifact_metadata_component(
         prepared_dataset=prep_task.outputs["prepared_dataset"],
         model_artifact=train_task.outputs["model_artifact"],
         training_run=train_task.outputs["training_metadata"],
@@ -172,3 +175,4 @@ def machledata_pipeline(
         evaluation_metrics=eval_task.outputs["evaluation_metrics"],
         artifact_root=artifact_root,
     )  # type: ignore
+    publish_task.set_caching_options(False)

@@ -209,3 +209,19 @@ artifacts/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Local debug log dumps (Phase D investigation)
+*_logs.txt
+prep_v*.txt
+train_v*.txt
+new_run.txt
+all_logs_window.txt
+
+# IDE config
+.idea/
+
+# Local backups
+*.bak
+
+# Local model weight downloads (huge files, auto-downloaded by YOLO)
+yolov8n.pt

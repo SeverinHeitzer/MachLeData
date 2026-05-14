@@ -15,6 +15,8 @@ from machledata.data import (
     load_sample_paths,
     write_yolo_dataset_yaml,
 )
+
+from google.cloud import storage
 from machledata.metrics import summarize_detections
 from machledata.train import create_training_run, train_yolo_model
 from machledata.model import build_model_config, save_model
@@ -89,11 +91,41 @@ def prepare_dataset(
     if not class_names:
         class_names = ["object"]
     yolo_yaml_path = prepared_dir / "dataset.yaml"
-    write_yolo_dataset_yaml(
-        output_path=yolo_yaml_path,
-        train_image_dir=get_project_path(samples_dir),
-        class_names=class_names,
-    )
+    if annotation_rows:
+        # Materialize real images and YOLO labels from GCS for training.
+        yolo_data_dir = prepared_dir / "yolo_data"
+        train_image_dir = _materialize_yolo_dataset(
+            annotation_rows=annotation_rows,
+            output_dir=yolo_data_dir,
+            class_names=class_names,
+        )
+        write_yolo_dataset_yaml(
+            output_path=yolo_yaml_path,
+            train_image_dir=train_image_dir,
+            class_names=class_names,
+        )
+        # Determine the GCS bucket from the first annotation's image_uri.
+        # (e.g. "gs://machledata-495608-machledata/coco128/..." -> "machledata-495608-machledata")
+        first_uri = annotation_rows[0].get("image_uri", "")
+        bucket_name = first_uri[len("gs://"):].split("/", 1)[0] if first_uri.startswith("gs://") else None
+        print(f"[prepare_dataset] Inferred bucket={bucket_name}", flush=True)
+
+        # Upload everything to GCS so the train-model container can fetch it.
+        gcs_uri = _upload_yolo_dataset_to_gcs(
+            yolo_data_dir=yolo_data_dir,
+            yolo_yaml_path=yolo_yaml_path,
+            run_label=label,
+            bucket_name=bucket_name,
+        )
+        print(f"[prepare_dataset] Uploaded yolo data to {gcs_uri}", flush=True)
+    else:
+        # Fallback: empty data -> point at samples_dir (existing behavior).
+        gcs_uri = None
+        write_yolo_dataset_yaml(
+            output_path=yolo_yaml_path,
+            train_image_dir=get_project_path(samples_dir),
+            class_names=class_names,
+        )
 
     descriptor = {
         "dataset_id": dataset_id,
@@ -105,6 +137,7 @@ def prepare_dataset(
         "annotation_count": len(annotation_rows),
         "annotations_path": str(annotation_path.resolve()) if annotation_path else None,
         "yolo_dataset_yaml": str(yolo_yaml_path.resolve()),
+        "yolo_dataset_gcs_uri": gcs_uri,
         "split": split or config_value(data_config, "split"),
         "source_type": "bigquery" if project_id and bigquery_dataset else "local",
         "source_uri": source_uri,
@@ -152,7 +185,19 @@ def train_model(
     model_config = load_yaml_config(model_config_path)
     yolo_metrics: dict[str, Any] = {}
     yolo_yaml = prepared_dataset.get("yolo_dataset_yaml")
+    yolo_gcs = prepared_dataset.get("yolo_dataset_gcs_uri")
+    print(f"[train_model] yolo_yaml={yolo_yaml}", flush=True)
+    print(f"[train_model] yolo_gcs={yolo_gcs}", flush=True)
+
+    # If yaml not present locally, try downloading from GCS.
+    if yolo_yaml and not Path(yolo_yaml).exists() and yolo_gcs:
+        print(f"[train_model] Downloading yolo data from {yolo_gcs}", flush=True)
+        yolo_yaml = _download_yolo_dataset_from_gcs(yolo_gcs)
+        print(f"[train_model] Downloaded; new yolo_yaml={yolo_yaml}", flush=True)
+
+    print(f"[train_model] Path exists? {Path(yolo_yaml).exists() if yolo_yaml else 'N/A'}", flush=True)
     if yolo_yaml and Path(yolo_yaml).exists():
+        print("[train_model] Entering REAL training branch", flush=True)
         try:
             cfg = build_model_config(
                 model_name=model_name,
@@ -167,6 +212,7 @@ def train_model(
             )
             save_model(trained_model, output_model_path)
         except Exception as exc:
+            print(f"[train_model] EXCEPTION caught: {exc!r}", flush=True)
             # Fall back to placeholder so the pipeline step doesn't hard-fail
             # when training images are unavailable (e.g. empty data/samples/).
             yolo_metrics = {"training_error": str(exc)}
@@ -175,6 +221,7 @@ def train_model(
                 encoding="utf-8",
             )
     else:
+        print("[train_model] FALLBACK: no yolo_yaml or path doesn't exist; writing placeholder", flush=True)
         output_model_path.write_text(
             f"Placeholder model artifact for {model_name} ({epochs} epochs)\n",
             encoding="utf-8",
@@ -391,3 +438,131 @@ def _load_bigquery_rows(
         limit=max_rows,
     )
     return load_bigquery_object_detection_rows(config)
+
+
+def _materialize_yolo_dataset(
+    annotation_rows: list[dict[str, Any]],
+    output_dir: Path,
+    class_names: list[str],
+) -> Path:
+    """Download images from GCS and write YOLO-format labels for training.
+
+    Reads the BigQuery annotation rows, downloads each image to
+    `output_dir/images/`, and writes per-image YOLO label files to
+    `output_dir/labels/`. Returns the output directory.
+    """
+    images_dir = output_dir / "images"
+    labels_dir = output_dir / "labels"
+    images_dir.mkdir(parents=True, exist_ok=True)
+    labels_dir.mkdir(parents=True, exist_ok=True)
+
+    # Group annotation rows by image_id
+    by_image: dict[str, list[dict[str, Any]]] = {}
+    for row in annotation_rows:
+        image_id = row.get("image_id")
+        if image_id is None:
+            continue
+        by_image.setdefault(image_id, []).append(row)
+
+    class_to_id = {name: idx for idx, name in enumerate(class_names)}
+    storage_client = storage.Client()
+
+    for image_id, rows in by_image.items():
+        first = rows[0]
+        image_uri = first.get("image_uri")
+        width = first.get("width")
+        height = first.get("height")
+        if not image_uri or not width or not height:
+            continue
+
+        # Download image from gs://bucket/path
+        if not image_uri.startswith("gs://"):
+            continue
+        bucket_name, _, blob_path = image_uri[len("gs://"):].partition("/")
+        local_image_path = images_dir / f"{image_id}.jpg"
+        if not local_image_path.exists():
+            bucket = storage_client.bucket(bucket_name)
+            bucket.blob(blob_path).download_to_filename(str(local_image_path))
+
+        # Write YOLO label file
+        label_lines = []
+        for row in rows:
+            class_name = row.get("class_name")
+            bbox = row.get("bbox") or []
+            if class_name is None or len(bbox) != 4 or any(v is None for v in bbox):
+                continue
+            x_min, y_min, x_max, y_max = bbox
+            cx = ((x_min + x_max) / 2.0) / width
+            cy = ((y_min + y_max) / 2.0) / height
+            w = (x_max - x_min) / width
+            h = (y_max - y_min) / height
+            class_id = class_to_id.get(class_name)
+            if class_id is None:
+                continue
+            label_lines.append(f"{class_id} {cx:.6f} {cy:.6f} {w:.6f} {h:.6f}")
+        (labels_dir / f"{image_id}.txt").write_text(
+            "\n".join(label_lines) + "\n", encoding="utf-8"
+        )
+
+    return images_dir
+
+
+def _upload_yolo_dataset_to_gcs(
+    yolo_data_dir: Path,
+    yolo_yaml_path: Path,
+    run_label: str,
+    bucket_name: str,
+) -> str:
+    """Upload yolo_data folder + dataset.yaml to GCS so train-model can read it."""
+    if not bucket_name:
+        raise ValueError("bucket_name is required for GCS upload")
+    prefix = f"pipeline_artifacts/{run_label}"
+    storage_client = storage.Client()
+    bucket = storage_client.bucket(bucket_name)
+
+    # Upload all files under yolo_data_dir, preserving structure
+    for path in yolo_data_dir.rglob("*"):
+        if path.is_file():
+            rel = path.relative_to(yolo_data_dir)
+            blob_path = f"{prefix}/yolo_data/{rel}".replace("\\", "/")
+            bucket.blob(blob_path).upload_from_filename(str(path))
+
+    # Upload dataset.yaml too
+    yaml_blob_path = f"{prefix}/dataset.yaml"
+    bucket.blob(yaml_blob_path).upload_from_filename(str(yolo_yaml_path))
+
+    return f"gs://{bucket_name}/{prefix}"
+
+
+def _download_yolo_dataset_from_gcs(gcs_uri: str) -> str:
+    """Download yolo dataset from GCS to /tmp; return local path of dataset.yaml."""
+    if not gcs_uri.startswith("gs://"):
+        return gcs_uri
+    bucket_name, _, prefix = gcs_uri[len("gs://"):].partition("/")
+    local_dir = Path("/tmp/yolo_downloaded")
+    local_dir.mkdir(parents=True, exist_ok=True)
+
+    storage_client = storage.Client()
+    bucket = storage_client.bucket(bucket_name)
+    blobs = list(bucket.list_blobs(prefix=prefix))
+    print(f"[download] Found {len(blobs)} blobs under {prefix}", flush=True)
+
+    for blob in blobs:
+        rel = blob.name[len(prefix):].lstrip("/")
+        local_path = local_dir / rel
+        local_path.parent.mkdir(parents=True, exist_ok=True)
+        blob.download_to_filename(str(local_path))
+
+    yaml_path = local_dir / "dataset.yaml"
+    # Patch dataset.yaml so it points at the local images dir
+    if yaml_path.exists():
+        text = yaml_path.read_text()
+        new_text = re.sub(
+            r"^path:.*$",
+            f"path: {local_dir / 'yolo_data' / 'images'}",
+            text,
+            flags=re.MULTILINE,
+        )
+        yaml_path.write_text(new_text)
+
+    return str(yaml_path)

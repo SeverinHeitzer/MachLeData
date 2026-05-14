@@ -5,6 +5,10 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+ENV PYTHONUNBUFFERED=1
+
+ENV YOLO_CONFIG_DIR=/tmp/yolo_config
+
 # Install system dependencies for OpenCV and PyTorch (OpenMP)
 RUN apt-get update && apt-get install -y \
     libgl1 \
@@ -26,8 +30,9 @@ COPY scripts ./scripts
 # Install package and pre-download default model weights for offline use
 RUN pip install --no-cache-dir -e . \
     && python -c "from ultralytics import YOLO; YOLO('yolov8n.pt')" \
-    && useradd -m appuser
-
+    && useradd -m appuser \
+    && mkdir -p /tmp/Ultralytics \
+    && chmod 777 /tmp/Ultralytics
 USER appuser
 
 EXPOSE 8000

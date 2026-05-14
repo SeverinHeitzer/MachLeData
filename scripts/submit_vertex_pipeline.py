@@ -64,6 +64,7 @@ def main() -> None:
         display_name="machledata-ml-pipeline",
         template_path=template_path,
         pipeline_root=pipeline_root,
+	enable_caching=False,
         parameter_values={
             "dataset_id": args.dataset_id,
             "samples_dir": args.samples_dir,
