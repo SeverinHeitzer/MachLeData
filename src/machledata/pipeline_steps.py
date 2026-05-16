@@ -23,6 +23,9 @@ from machledata.orchestration import (
 
 def main() -> None:
     """Dispatch one pipeline step and write its JSON output."""
+    import sys
+    print("=== MACHLEDATA STEP START ===", flush=True)
+    print(f"argv: {sys.argv}", flush=True)
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -75,6 +78,7 @@ def main() -> None:
 
 
 def _run_prepare(args: argparse.Namespace) -> dict[str, Any]:
+    print("=== _run_prepare entered ===", flush=True)
     data_config = load_yaml_config(DEFAULT_DATA_CONFIG)
     dataset_id = _clean(args.dataset_id) or config_value(
         data_config,
@@ -101,9 +105,14 @@ def _run_prepare(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def _run_train(args: argparse.Namespace) -> dict[str, Any]:
+    print("=== _run_train entered ===", flush=True)
     model_config = load_yaml_config(DEFAULT_MODEL_CONFIG)
+    prepared = _read_json(Path(args.prepared_dataset_path))
+    print(f"prepared keys: {list(prepared.keys())}", flush=True)
+    print(f"yolo_dataset_yaml: {prepared.get('yolo_dataset_yaml')}", flush=True)
+    print(f"annotation_count: {prepared.get('annotation_count')}", flush=True)
     return train_model(
-        prepared_dataset=_read_json(Path(args.prepared_dataset_path)),
+        prepared_dataset=prepared,
         model_name=_clean(args.model_name)
         or config_value(model_config, "model_name", "yolov8n"),
         epochs=args.epochs or int(config_value(model_config, "epochs", 10)),
@@ -112,7 +121,6 @@ def _run_train(args: argparse.Namespace) -> dict[str, Any]:
         model_artifact_path=args.model_output_path,
         training_metadata_path=args.metadata_output_path,
     )
-
 
 def _run_evaluate(args: argparse.Namespace) -> dict[str, Any]:
     return evaluate_model(
