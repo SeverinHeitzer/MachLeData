@@ -1,6 +1,7 @@
 name: Build, Test, and Deploy MachLeData
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
