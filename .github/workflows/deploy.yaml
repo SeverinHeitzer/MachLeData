@@ -143,6 +143,21 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
+      # 1. Fetch the files from your git repository so GitHub has access to them
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      # 2. Securely copy the docker-compose file from GitHub to your GCP VM
+      - name: Copy Docker Compose file via SCP
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.REMOTE_HOST }}
+          username: ${{ secrets.REMOTE_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "docker/docker-compose.yml"
+          target: ${{ secrets.REMOTE_APP_DIR }}
+
+      # 3. Run your existing remote deployment commands
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.2.0
         with:
